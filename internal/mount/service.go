@@ -149,21 +149,42 @@ func (s *Service) DetailForSub(ctx context.Context, subID, id string) (catvod.Re
 	if err != nil {
 		return catvod.Result{}, err
 	}
-	playURLs := []string{}
-	mediaItems := orderedMediaItems(items, selectedName)
-	for _, item := range mediaItems {
-		subs := s.findSubs(ref.mount, mediaParentRel, items, item.Name, ref.scope.lang)
-		mediaID := encodePlayToken(playToken{ID: ref.mount.ID + "/" + path.Join(mediaParentRel, item.Name), Subs: subs})
-		playURLs = append(playURLs, playItemName(item.Name)+"$"+mediaID)
+	directoryPlayURLs := s.playURLsForItems(ref, mediaParentRel, items, orderedMediaItems(items, ""))
+	playFrom := i18n.T(ref.scope.lang, i18n.RemarkCurrentDir)
+	playURL := strings.Join(directoryPlayURLs, "#")
+	if selected, ok := selectedMediaItem(items, selectedName); ok {
+		selectedPlayURLs := s.playURLsForItems(ref, mediaParentRel, items, []openlist.Item{selected})
+		playFrom = i18n.T(ref.scope.lang, i18n.ActionClickPlay) + "$$$" + i18n.T(ref.scope.lang, i18n.RemarkCurrentDir)
+		playURL = strings.Join(selectedPlayURLs, "#") + "$$$" + strings.Join(directoryPlayURLs, "#")
 	}
 	vod := catvod.Vod{
 		VodID:       id,
 		VodName:     fallbackName(path.Base(ref.relPath), ref.mount.Name),
 		VodPic:      detailPic(ref.mount, selectedName, items),
-		VodPlayFrom: ref.mount.ID,
-		VodPlayURL:  strings.Join(playURLs, "#"),
+		VodRemarks:  selectedRemark(items, selectedName),
+		VodPlayFrom: playFrom,
+		VodPlayURL:  playURL,
 	}
 	return catvod.Result{List: []catvod.Vod{vod}}, nil
+}
+
+func (s *Service) playURLsForItems(ref resolved, mediaParentRel string, allItems, mediaItems []openlist.Item) []string {
+	playURLs := make([]string, 0, len(mediaItems))
+	for _, item := range mediaItems {
+		subs := s.findSubs(ref.mount, mediaParentRel, allItems, item.Name, ref.scope.lang)
+		mediaID := encodePlayToken(playToken{ID: ref.mount.ID + "/" + path.Join(mediaParentRel, item.Name), Subs: subs})
+		playURLs = append(playURLs, playItemName(item.Name)+"$"+mediaID)
+	}
+	return playURLs
+}
+
+func selectedRemark(items []openlist.Item, selectedName string) string {
+	for _, item := range items {
+		if item.Name == selectedName && utils.IsMedia(item.Name, item.Type) {
+			return playItemName(item.Name)
+		}
+	}
+	return ""
 }
 
 func (s *Service) detailItems(ctx context.Context, ref resolved) ([]openlist.Item, string, string, error) {

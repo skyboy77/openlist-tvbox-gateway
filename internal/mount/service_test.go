@@ -512,7 +512,7 @@ func TestDetailSortsSubtitlesBySubscriptionLanguage(t *testing.T) {
 	}
 }
 
-func TestDetailPutsSelectedMediaFirst(t *testing.T) {
+func TestDetailSplitsSelectedMediaAndCurrentDirectory(t *testing.T) {
 	svc := testService([]openlist.Item{
 		{Name: "a.mkv", Type: 2},
 		{Name: "b.mkv", Type: 2},
@@ -525,8 +525,31 @@ func TestDetailPutsSelectedMediaFirst(t *testing.T) {
 	if len(got.List) != 1 {
 		t.Fatalf("list = %#v", got.List)
 	}
-	if !strings.HasPrefix(got.List[0].VodPlayURL, "b.mkv$") {
-		t.Fatalf("play url = %q, want selected media first", got.List[0].VodPlayURL)
+	vod := got.List[0]
+	if vod.VodPlayFrom != "点击播放$$$当前目录" {
+		t.Fatalf("play from = %q", vod.VodPlayFrom)
+	}
+	if vod.VodRemarks != "b.mkv" {
+		t.Fatalf("remarks = %q", vod.VodRemarks)
+	}
+	sources := strings.Split(vod.VodPlayURL, "$$$")
+	if len(sources) != 2 {
+		t.Fatalf("play url = %q, want selected and directory sources", vod.VodPlayURL)
+	}
+	if !strings.HasPrefix(sources[0], "b.mkv$") || strings.Contains(sources[0], "#") {
+		t.Fatalf("selected source = %q", sources[0])
+	}
+	wantOrder := []string{"a.mkv$", "b.mkv$", "c.mkv$"}
+	last := -1
+	for _, want := range wantOrder {
+		idx := strings.Index(sources[1], want)
+		if idx < 0 {
+			t.Fatalf("directory source = %q, missing %q", sources[1], want)
+		}
+		if idx < last {
+			t.Fatalf("directory source = %q, %q is out of order", sources[1], want)
+		}
+		last = idx
 	}
 }
 
@@ -770,7 +793,8 @@ func (p pathListClient) Search(context.Context, config.Backend, string, string, 
 
 func playIDFromURL(t *testing.T, playURL string) string {
 	t.Helper()
-	parts := strings.SplitN(playURL, "$", 2)
+	source, _, _ := strings.Cut(playURL, "$$$")
+	parts := strings.SplitN(source, "$", 2)
 	if len(parts) != 2 || parts[1] == "" {
 		t.Fatalf("play url = %q", playURL)
 	}

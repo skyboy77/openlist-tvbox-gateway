@@ -17,6 +17,7 @@ const (
 	FilterAscending        Key = "filter.ascending"
 	FilterDescending       Key = "filter.descending"
 	ActionPlayDirectory    Key = "action.playDirectory"
+	ActionClickPlay        Key = "action.clickPlay"
 	ActionRefreshDirectory Key = "action.refreshDirectory"
 	ActionRefreshDone      Key = "action.refreshDone"
 	RemarkPlayDirectory    Key = "remark.playDirectory"
@@ -35,6 +36,7 @@ var messages = map[string]map[Key]string{
 		FilterAscending:        "升序",
 		FilterDescending:       "降序",
 		ActionPlayDirectory:    "播放此目录",
+		ActionClickPlay:        "点击播放",
 		ActionRefreshDirectory: "刷新此目录",
 		ActionRefreshDone:      "刷新完成",
 		RemarkPlayDirectory:    "播放当前目录",
@@ -51,6 +53,7 @@ var messages = map[string]map[Key]string{
 		FilterAscending:        "Ascending",
 		FilterDescending:       "Descending",
 		ActionPlayDirectory:    "Play this folder",
+		ActionClickPlay:        "Play selected",
 		ActionRefreshDirectory: "Refresh this folder",
 		ActionRefreshDone:      "Refresh complete",
 		RemarkPlayDirectory:    "Play current folder",

@@ -44,6 +44,15 @@ func orderedMediaItems(items []openlist.Item, selectedName string) []openlist.It
 	return append(selected, others...)
 }
 
+func selectedMediaItem(items []openlist.Item, selectedName string) (openlist.Item, bool) {
+	for _, item := range items {
+		if item.Name == selectedName && utils.IsMedia(item.Name, item.Type) {
+			return item, true
+		}
+	}
+	return openlist.Item{}, false
+}
+
 func hasMedia(items []openlist.Item) bool {
 	for _, item := range items {
 		if utils.IsMedia(item.Name, item.Type) {
