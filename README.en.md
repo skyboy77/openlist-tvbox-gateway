@@ -9,17 +9,17 @@
 
 </details>
 
-`openlist-tvbox` is a read-only OpenList / AList gateway for TVBox / CatVodSpider.
+`openlist-tvbox` is a read-only OpenList / AList / WebDAV gateway for TVBox / CatVodSpider.
 
-It converts server-side OpenList / AList content into TVBox-compatible categories, directory listings, search results, details, and playback data. TVBox clients talk only to this gateway and never receive your OpenList API key, username/password, or login token.
+It converts server-side OpenList / AList / WebDAV content into TVBox-compatible categories, directory listings, search results, details, and playback data. TVBox clients talk only to this gateway and never receive your OpenList API key, WebDAV password, or login token.
 
 Simplified Chinese documentation: [README.md](README.md)
 
 ## Features
 
-- Read-only OpenList / AList v3 access.
+- Read-only OpenList / AList v3 and WebDAV access.
 - Anonymous, API key, and username/password backend authentication.
-- Multiple OpenList / AList backends.
+- Multiple OpenList / AList / WebDAV backends.
 - Multiple TVBox subscription endpoints, each with mounts from different backends and backend paths.
 - Directory browsing, sorting filters, detail playlists, search, and playback URL resolution.
 - Subtitle detection for files in the same directory.
@@ -152,7 +152,7 @@ Common fields:
 
 - `public_base_url`: external gateway URL visible to TVBox and the proxied Admin UI.
 - `trust_forwarded_headers`: whether to trust `X-Forwarded-For`, `X-Forwarded-Proto`, and `X-Forwarded-Host` from a reverse proxy.
-- `backends`: real OpenList / AList backend definitions.
+- `backends`: real OpenList / AList / WebDAV backend definitions.
 - `subs`: TVBox subscription endpoints.
 - `subs[].mounts`: backend paths exposed as TVBox categories.
 - `access_code_hash`: subscription access-code hash.
@@ -161,7 +161,9 @@ Config files support hot reload. After startup, the gateway watches the file spe
 
 ## Security Notes
 
-- OpenList API keys, passwords, and login tokens stay on the gateway server.
+- OpenList API keys, passwords, WebDAV passwords, and login tokens stay on the gateway server.
+- WebDAV playback and subtitle URLs are always gateway-signed proxy URLs; upstream URLs and auth headers are not sent to TVBox.
+- WebDAV mounts do not support `refresh` or `search`.
 
 ## Useful Commands
 

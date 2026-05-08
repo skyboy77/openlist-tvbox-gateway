@@ -53,6 +53,10 @@ func (s *Server) dynamic(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	subID = strings.TrimPrefix(subID, "s/")
+	if proxyPath, ok := strings.CutPrefix(apiPath, "proxy/file/"); ok {
+		s.fileProxyForSub(service, w, r, subID, proxyPath)
+		return
+	}
 	switch apiPath {
 	case "home":
 		if !s.authorize(service, w, r, subID) {

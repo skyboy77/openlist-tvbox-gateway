@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"path"
 	"strconv"
 	"strings"
 	"sync"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	"openlist-tvbox/internal/auth"
+	"openlist-tvbox/internal/backend"
 	"openlist-tvbox/internal/config"
 	"openlist-tvbox/internal/mount"
 	"openlist-tvbox/internal/openlist"
@@ -723,4 +725,114 @@ func (r *recordingGatewayClient) Get(context.Context, config.Backend, string, st
 
 func (r *recordingGatewayClient) Search(context.Context, config.Backend, string, string, string) ([]openlist.Item, error) {
 	return nil, nil
+}
+
+type webdavGatewayClient struct {
+	openPath  string
+	openRange string
+}
+
+func (c *webdavGatewayClient) List(context.Context, config.Backend, string, string) ([]openlist.Item, error) {
+	return []openlist.Item{
+		{Name: "movie.mkv", Type: 0, Size: 3},
+		{Name: "movie.srt", Type: 0, Size: 2},
+	}, nil
+}
+
+func (c *webdavGatewayClient) RefreshList(context.Context, config.Backend, string, string) ([]openlist.Item, error) {
+	return c.List(context.Background(), config.Backend{}, "", "")
+}
+
+func (c *webdavGatewayClient) Get(_ context.Context, _ config.Backend, p string, _ string) (openlist.Item, error) {
+	return openlist.Item{Name: path.Base(p), Type: 0}, nil
+}
+
+func (c *webdavGatewayClient) Search(context.Context, config.Backend, string, string, string) ([]openlist.Item, error) {
+	return nil, nil
+}
+
+func (c *webdavGatewayClient) Open(_ context.Context, _ config.Backend, p string, opts backend.OpenOptions) (*backend.Stream, error) {
+	c.openPath = p
+	c.openRange = opts.Range
+	header := http.Header{}
+	header.Set("Content-Type", "video/mp4")
+	header.Set("Content-Range", "bytes 1-2/3")
+	header.Set("Set-Cookie", "secret=leak")
+	return &backend.Stream{Body: io.NopCloser(strings.NewReader("bc")), StatusCode: http.StatusPartialContent, Header: header}, nil
+}
+
+func TestWebDAVPlayUsesSignedProxyWithoutLeakingSecrets(t *testing.T) {
+	search := false
+	cfg := &config.Config{
+		Backends: []config.Backend{{ID: "dav", Type: "webdav", Server: "https://dav.example.com/remote.php/dav/files/demo", AuthType: "password", User: "demo", Password: "secret-password"}},
+		Subs:     []config.Subscription{{ID: "movies", Path: "/sub", SiteKey: "movies_key", Mounts: []config.Mount{{ID: "movies", Backend: "dav", Path: "/Movies", Search: &search}}}},
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	client := &webdavGatewayClient{}
+	handler := NewServer(mount.NewService(cfg, client, nil), nil)
+
+	detailReq := httptest.NewRequest(http.MethodGet, "http://gateway.example.com/s/movies/api/tvbox/detail?id=movies/movie.mkv", nil)
+	detailRec := httptest.NewRecorder()
+	handler.ServeHTTP(detailRec, detailReq)
+	if detailRec.Code != http.StatusOK {
+		t.Fatalf("detail status = %d body = %s", detailRec.Code, detailRec.Body.String())
+	}
+	var detail struct {
+		List []struct {
+			VodPlayURL string `json:"vod_play_url"`
+		} `json:"list"`
+	}
+	if err := json.Unmarshal(detailRec.Body.Bytes(), &detail); err != nil {
+		t.Fatal(err)
+	}
+	_, playIDs, ok := strings.Cut(detail.List[0].VodPlayURL, "$")
+	if !ok {
+		t.Fatalf("missing play id: %s", detail.List[0].VodPlayURL)
+	}
+	playID, _, _ := strings.Cut(playIDs, "#")
+	playID, _, _ = strings.Cut(playID, "$$$")
+
+	playReq := httptest.NewRequest(http.MethodGet, "http://gateway.example.com/s/movies/api/tvbox/play?id="+playID, nil)
+	playRec := httptest.NewRecorder()
+	handler.ServeHTTP(playRec, playReq)
+	if playRec.Code != http.StatusOK {
+		t.Fatalf("play status = %d body = %s", playRec.Code, playRec.Body.String())
+	}
+	body := playRec.Body.String()
+	for _, forbidden := range []string{"dav.example.com", "demo", "secret-password", "Authorization", "Cookie"} {
+		if strings.Contains(body, forbidden) {
+			t.Fatalf("play response leaked %q: %s", forbidden, body)
+		}
+	}
+	var play struct {
+		URL  string `json:"url"`
+		Subs []struct {
+			URL string `json:"url"`
+		} `json:"subs"`
+	}
+	if err := json.Unmarshal([]byte(body), &play); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(play.URL, "http://gateway.example.com/s/movies/api/tvbox/proxy/file/") {
+		t.Fatalf("play url = %q", play.URL)
+	}
+	if len(play.Subs) != 1 || !strings.HasPrefix(play.Subs[0].URL, "http://gateway.example.com/s/movies/api/tvbox/proxy/file/") {
+		t.Fatalf("subs = %#v", play.Subs)
+	}
+
+	proxyReq := httptest.NewRequest(http.MethodGet, play.URL, nil)
+	proxyReq.Header.Set("Range", "bytes=1-2")
+	proxyRec := httptest.NewRecorder()
+	handler.ServeHTTP(proxyRec, proxyReq)
+	if proxyRec.Code != http.StatusPartialContent {
+		t.Fatalf("proxy status = %d body = %s", proxyRec.Code, proxyRec.Body.String())
+	}
+	if client.openPath != "/Movies/movie.mkv" || client.openRange != "bytes=1-2" {
+		t.Fatalf("open path/range = %q %q", client.openPath, client.openRange)
+	}
+	if proxyRec.Header().Get("Content-Range") != "bytes 1-2/3" || proxyRec.Header().Get("Set-Cookie") != "" {
+		t.Fatalf("proxy headers = %#v", proxyRec.Header())
+	}
 }

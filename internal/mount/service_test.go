@@ -2,6 +2,7 @@ package mount
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -317,6 +318,64 @@ func TestCategorySkipsPlayDirectoryVodWithoutCurrentDirectoryMedia(t *testing.T)
 	}
 	if len(got.List) != 2 || got.List[0].VodName == "播放此目录" {
 		t.Fatalf("list = %#v, want no play directory vod", got.List)
+	}
+}
+
+func TestCategoryMarksFilesWithFileScopedID(t *testing.T) {
+	svc := testService([]openlist.Item{
+		{Name: "dir", Type: 1},
+		{Name: "movie.mkv", Type: 2},
+	})
+	got, err := svc.CategoryForSub(context.Background(), "default", "m1", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ids := map[string]string{}
+	for _, vod := range got.List {
+		ids[vod.VodName] = vod.VodID
+	}
+	if ids["dir"] != "m1/dir" {
+		t.Fatalf("folder id = %q", ids["dir"])
+	}
+	if ids["movie.mkv"] != "__file__/m1/movie.mkv" {
+		t.Fatalf("file id = %q", ids["movie.mkv"])
+	}
+}
+
+func TestCategoryFileScopedIDReturnsDetail(t *testing.T) {
+	cfg := &config.Config{
+		Backends: []config.Backend{{ID: "b1", Server: "https://example.com"}},
+		Subs:     []config.Subscription{{Mounts: []config.Mount{{ID: "m1", Name: "M1", Backend: "b1", Path: "/root"}}}},
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	svc := NewService(cfg, fileCategoryClient{}, nil)
+	got, err := svc.CategoryForSub(context.Background(), "default", "__file__/m1/movie.mkv", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.List) != 1 || got.List[0].VodPlayURL == "" {
+		t.Fatalf("result = %#v, want detail result", got)
+	}
+}
+
+func TestCategoryFallsBackToDetailForLegacyFileID(t *testing.T) {
+	cfg := &config.Config{
+		Backends: []config.Backend{{ID: "b1", Server: "https://example.com"}},
+		Subs:     []config.Subscription{{Mounts: []config.Mount{{ID: "m1", Name: "M1", Backend: "b1", Path: "/root"}}}},
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	client := fileCategoryClient{}
+	svc := NewService(cfg, client, nil)
+	got, err := svc.CategoryForSub(context.Background(), "default", "m1/movie.mkv", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.List) != 1 || got.List[0].VodPlayURL == "" {
+		t.Fatalf("result = %#v, want detail result", got)
 	}
 }
 
@@ -788,6 +847,30 @@ func (p pathListClient) Get(context.Context, config.Backend, string, string) (op
 }
 
 func (p pathListClient) Search(context.Context, config.Backend, string, string, string) ([]openlist.Item, error) {
+	return nil, nil
+}
+
+type fileCategoryClient struct{}
+
+func (fileCategoryClient) List(_ context.Context, _ config.Backend, p, _ string) ([]openlist.Item, error) {
+	if p == "/root/movie.mkv" {
+		return nil, errors.New("not a directory")
+	}
+	return []openlist.Item{{Name: "movie.mkv", Type: 2}}, nil
+}
+
+func (fileCategoryClient) RefreshList(context.Context, config.Backend, string, string) ([]openlist.Item, error) {
+	return nil, nil
+}
+
+func (fileCategoryClient) Get(_ context.Context, _ config.Backend, p, _ string) (openlist.Item, error) {
+	if p == "/root/movie.mkv" {
+		return openlist.Item{Name: "movie.mkv", Type: 2, URL: "https://cdn.example.com/movie.mkv"}, nil
+	}
+	return openlist.Item{}, nil
+}
+
+func (fileCategoryClient) Search(context.Context, config.Backend, string, string, string) ([]openlist.Item, error) {
 	return nil, nil
 }
 

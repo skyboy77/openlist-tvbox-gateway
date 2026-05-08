@@ -44,6 +44,7 @@ type TVBox struct {
 
 type Backend struct {
 	ID             string `json:"id" yaml:"id"`
+	Type           string `json:"type,omitempty" yaml:"type"`
 	Server         string `json:"server" yaml:"server"`
 	AuthType       string `json:"auth_type" yaml:"auth_type"`
 	APIKey         string `json:"api_key,omitempty" yaml:"api_key"`
@@ -53,7 +54,7 @@ type Backend struct {
 	Password       string `json:"password,omitempty" yaml:"password"`
 	PasswordAction string `json:"password_action,omitempty" yaml:"-"`
 	PasswordEnv    string `json:"password_env,omitempty" yaml:"password_env"`
-	Version        string `json:"version" yaml:"version"`
+	Version        string `json:"version,omitempty" yaml:"version"`
 }
 
 type Mount struct {
@@ -140,9 +141,9 @@ func EnsureEditableJSON(path string) error {
 		Backends: []Backend{
 			{
 				ID:       "local",
+				Type:     "openlist_v4",
 				Server:   "http://127.0.0.1:5244",
 				AuthType: "anonymous",
-				Version:  "v3",
 			},
 		},
 		Subs: []Subscription{},
@@ -248,25 +249,42 @@ func (c *Config) validate(opts validateOptions) error {
 	if len(c.Backends) == 0 {
 		return CodedErrorf("backend.required", nil, "at least one backend is required")
 	}
-	backendIDs := map[string]struct{}{}
+	backendByID := map[string]Backend{}
 	for i := range c.Backends {
 		b := &c.Backends[i]
 		if !validID(b.ID) {
 			return CodedErrorf("backend.id.invalid", map[string]any{"index": i}, "backend[%d] id must contain only letters, digits, underscore or dash", i)
 		}
-		if _, ok := backendIDs[b.ID]; ok {
+		if _, ok := backendByID[b.ID]; ok {
 			return CodedErrorf("backend.id.duplicate", map[string]any{"backend_id": b.ID}, "duplicate backend id %q", b.ID)
 		}
-		backendIDs[b.ID] = struct{}{}
+		b.Type = strings.TrimSpace(b.Type)
+		if b.Type == "" {
+			b.Type = "openlist_v4"
+		}
+		switch b.Type {
+		case "openlist_v4", "alist_v3", "webdav":
+		default:
+			return CodedErrorf("backend.type.invalid", map[string]any{"backend_id": b.ID, "type": b.Type}, "backend %q type must be one of openlist_v4, alist_v3 or webdav", b.ID)
+		}
 		u, err := url.Parse(b.Server)
 		if err != nil || u.Scheme == "" || u.Host == "" {
 			return CodedErrorf("backend.server.invalid", map[string]any{"backend_id": b.ID}, "backend %q server must be an absolute URL", b.ID)
 		}
+		if b.Type == "webdav" {
+			if u.Scheme != "http" && u.Scheme != "https" {
+				return CodedErrorf("backend.server.invalid", map[string]any{"backend_id": b.ID}, "backend %q WebDAV server must be an absolute http(s) URL", b.ID)
+			}
+			if u.User != nil {
+				return CodedErrorf("backend.server.credentials", map[string]any{"backend_id": b.ID}, "backend %q WebDAV server must not include credentials", b.ID)
+			}
+			if u.RawQuery != "" || u.Fragment != "" {
+				return CodedErrorf("backend.server.invalid", map[string]any{"backend_id": b.ID}, "backend %q WebDAV server must not include query or fragment", b.ID)
+			}
+		}
 		b.Server = strings.TrimRight(b.Server, "/")
-		if b.Version == "" {
-			b.Version = "v3"
-		} else if b.Version != "v3" {
-			return CodedErrorf("backend.version.invalid", map[string]any{"backend_id": b.ID, "version": b.Version}, "backend %q version must be v3", b.ID)
+		if b.Version != "" && b.Version != "v3" {
+			return CodedErrorf("backend.version.invalid", map[string]any{"backend_id": b.ID, "version": b.Version}, "backend %q version must be v3 when set", b.ID)
 		}
 		if opts.RejectEnvSecrets {
 			b.APIKeyEnv = strings.TrimSpace(b.APIKeyEnv)
@@ -278,6 +296,7 @@ func (c *Config) validate(opts validateOptions) error {
 		if err := normalizeBackendAuth(b, opts.ResolveEnvSecrets); err != nil {
 			return err
 		}
+		backendByID[b.ID] = *b
 	}
 	if len(c.Subs) == 0 && !opts.AllowEmptySubs {
 		return CodedErrorf("subscription.required", nil, "at least one sub is required")
@@ -351,7 +370,7 @@ func (c *Config) validate(opts validateOptions) error {
 		if err := validateLives(sub.ID, sub.Lives); err != nil {
 			return err
 		}
-		if err := validateMounts(sub.ID, sub.Mounts, backendIDs); err != nil {
+		if err := validateMounts(sub.ID, sub.Mounts, backendByID); err != nil {
 			return err
 		}
 	}
@@ -387,6 +406,9 @@ func normalizeBackendAuth(b *Backend, resolveEnvSecrets bool) error {
 			return CodedErrorf("backend.auth.credentials_for_anonymous", map[string]any{"backend_id": b.ID}, "backend %q anonymous auth must not set credential fields", b.ID)
 		}
 	case "api_key":
+		if b.Type == "webdav" {
+			return CodedErrorf("backend.auth_type.invalid", map[string]any{"backend_id": b.ID, "auth_type": b.AuthType}, "backend %q WebDAV auth_type must be anonymous or password", b.ID)
+		}
 		if b.User != "" || b.Password != "" || b.PasswordEnv != "" {
 			return CodedErrorf("backend.auth.api_key_password_conflict", map[string]any{"backend_id": b.ID}, "backend %q api_key auth must not set password auth fields", b.ID)
 		}
@@ -467,7 +489,7 @@ func validateLives(subID string, lives []Live) error {
 	return nil
 }
 
-func validateMounts(subID string, mounts []Mount, backendIDs map[string]struct{}) error {
+func validateMounts(subID string, mounts []Mount, backendByID map[string]Backend) error {
 	mountIDs := map[string]struct{}{}
 	for i := range mounts {
 		m := &mounts[i]
@@ -478,8 +500,15 @@ func validateMounts(subID string, mounts []Mount, backendIDs map[string]struct{}
 			return CodedErrorf("mount.id.duplicate", map[string]any{"sub_id": subID, "mount_id": m.ID}, "sub %q duplicate mount id %q", subID, m.ID)
 		}
 		mountIDs[m.ID] = struct{}{}
-		if _, ok := backendIDs[m.Backend]; !ok {
+		backend, ok := backendByID[m.Backend]
+		if !ok {
 			return CodedErrorf("mount.backend.unknown", map[string]any{"sub_id": subID, "mount_id": m.ID, "backend_id": m.Backend}, "sub %q mount %q references unknown backend %q", subID, m.ID, m.Backend)
+		}
+		if m.Refresh && backend.Type == "webdav" {
+			return CodedErrorf("mount.refresh.unsupported", map[string]any{"sub_id": subID, "mount_id": m.ID, "backend_id": m.Backend, "backend_type": backend.Type}, "sub %q mount %q cannot enable refresh for WebDAV backend %q", subID, m.ID, m.Backend)
+		}
+		if backend.Type == "webdav" && m.SearchEnabled() {
+			return CodedErrorf("mount.search.unsupported", map[string]any{"sub_id": subID, "mount_id": m.ID, "backend_id": m.Backend, "backend_type": backend.Type}, "sub %q mount %q cannot enable search for WebDAV backend %q", subID, m.ID, m.Backend)
 		}
 		if m.Name == "" {
 			m.Name = m.ID

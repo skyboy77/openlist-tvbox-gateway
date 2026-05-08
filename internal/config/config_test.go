@@ -444,8 +444,8 @@ func TestValidateDefaultsBackendAuthModes(t *testing.T) {
 	if cfg.Backends[1].APIKey != "" || cfg.Backends[1].User != "" || cfg.Backends[1].Password != "" {
 		t.Fatalf("guest backend has auth fields: %#v", cfg.Backends[1])
 	}
-	if cfg.Backends[0].Version != "v3" || cfg.Backends[1].Version != "v3" {
-		t.Fatalf("backend versions = %#v", cfg.Backends)
+	if cfg.Backends[0].Type != "openlist_v4" || cfg.Backends[1].Type != "openlist_v4" {
+		t.Fatalf("backend types = %#v", cfg.Backends)
 	}
 }
 
@@ -456,6 +456,54 @@ func TestValidateRejectsUnsupportedBackendVersion(t *testing.T) {
 	}
 	if err := cfg.Validate(); err == nil {
 		t.Fatal("expected unsupported backend version error")
+	}
+}
+
+func TestValidateWebDAVBackendAuthModes(t *testing.T) {
+	search := false
+	cfg := Config{
+		Backends: []Backend{{ID: "dav", Type: "webdav", Server: "https://dav.example.com/files", AuthType: "password", User: "demo", Password: "secret"}},
+		Subs:     []Subscription{{Mounts: []Mount{{ID: "m1", Backend: "dav", Path: "/", Search: &search}}}},
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Backends[0].Version != "" {
+		t.Fatalf("webdav version = %q", cfg.Backends[0].Version)
+	}
+}
+
+func TestValidateRejectsWebDAVAPIKey(t *testing.T) {
+	cfg := Config{
+		Backends: []Backend{{ID: "dav", Type: "webdav", Server: "https://dav.example.com/files", AuthType: "api_key", APIKey: "secret"}},
+		Subs:     []Subscription{{Mounts: []Mount{{ID: "m1", Backend: "dav", Path: "/"}}}},
+	}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected webdav api_key auth error")
+	}
+}
+
+func TestValidateRejectsWebDAVMountRefresh(t *testing.T) {
+	cfg := Config{
+		Backends: []Backend{{ID: "dav", Type: "webdav", Server: "https://dav.example.com/files", AuthType: "anonymous"}},
+		Subs:     []Subscription{{Mounts: []Mount{{ID: "m1", Backend: "dav", Path: "/", Refresh: true}}}},
+	}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected webdav refresh error")
+	} else if ErrorCode(err, "") != "mount.refresh.unsupported" {
+		t.Fatalf("error = %v, code = %s", err, ErrorCode(err, ""))
+	}
+}
+
+func TestValidateRejectsWebDAVMountSearch(t *testing.T) {
+	cfg := Config{
+		Backends: []Backend{{ID: "dav", Type: "webdav", Server: "https://dav.example.com/files", AuthType: "anonymous"}},
+		Subs:     []Subscription{{Mounts: []Mount{{ID: "m1", Backend: "dav", Path: "/"}}}},
+	}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected webdav search error")
+	} else if ErrorCode(err, "") != "mount.search.unsupported" {
+		t.Fatalf("error = %v, code = %s", err, ErrorCode(err, ""))
 	}
 }
 

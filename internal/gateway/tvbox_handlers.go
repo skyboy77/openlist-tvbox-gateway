@@ -4,11 +4,13 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"openlist-tvbox/internal/auth"
 	"openlist-tvbox/internal/catvod"
 	"openlist-tvbox/internal/mount"
+	"openlist-tvbox/internal/subscription"
 )
 
 func (s *Server) categoryForSub(service *mount.Service, w http.ResponseWriter, r *http.Request, subID string) {
@@ -50,7 +52,12 @@ func (s *Server) playForSub(service *mount.Service, w http.ResponseWriter, r *ht
 	if !s.authorize(service, w, r, subID) {
 		return
 	}
-	result, err := service.PlayForSub(r.Context(), subID, r.URL.Query().Get("id"))
+	base := subscription.BaseURL(service.Config(), r) + "/s/" + subID + "/api/tvbox/proxy/file/"
+	proxyURL := func(id, name, kind string) string {
+		token := s.issueFileProxyToken(subID, id, kind)
+		return base + token + "/" + url.PathEscape(fileProxyName(name))
+	}
+	result, err := service.PlayForSubWithProxy(r.Context(), subID, r.URL.Query().Get("id"), proxyURL)
 	s.writeResult(w, result, err, "play", subID)
 }
 
@@ -114,6 +121,10 @@ func tvboxErrorKind(err error) string {
 	case strings.Contains(msg, "openlist request failed"):
 		return "upstream_request"
 	case strings.Contains(msg, "openlist"):
+		return "upstream"
+	case strings.Contains(msg, "webdav request failed"):
+		return "upstream_request"
+	case strings.Contains(msg, "webdav"):
 		return "upstream"
 	default:
 		return "request"

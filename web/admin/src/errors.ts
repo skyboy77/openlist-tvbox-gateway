@@ -80,6 +80,8 @@ export function localizeErrorCode(code: string, params: ErrorParams | undefined,
       return withScope(t("backend"), backend, t("errorBackendIDDuplicate"));
     case "backend.server.invalid":
       return withScope(t("backend"), backend, t("errorBackendServerInvalid"));
+    case "backend.type.invalid":
+      return withScope(t("backend"), backend, t("errorBackendTypeInvalid"));
     case "backend.version.invalid":
       return withScope(t("backend"), backend, t("errorBackendVersionInvalid"));
     case "backend.env_secret.unsupported":
@@ -136,6 +138,10 @@ export function localizeErrorCode(code: string, params: ErrorParams | undefined,
       return withMountScope(sub, mount, t("errorDirectoryPasswordsInvalid"), t);
     case "mount.play_headers.invalid":
       return withMountScope(sub, mount, t("errorPlayHeadersInvalid"), t);
+    case "mount.search.unsupported":
+      return withMountScope(sub, mount, t("errorMountSearchUnsupported"), t);
+    case "mount.refresh.unsupported":
+      return withMountScope(sub, mount, t("errorMountRefreshUnsupported"), t);
     case "subscription.live.url_required":
     case "subscription.live.url_invalid":
     case "subscription.live.epg_invalid":

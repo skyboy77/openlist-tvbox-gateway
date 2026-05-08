@@ -248,6 +248,7 @@ type editableConfig struct {
 
 type editableBackend struct {
 	ID             string `json:"id"`
+	Type           string `json:"type,omitempty"`
 	Server         string `json:"server"`
 	AuthType       string `json:"auth_type"`
 	APIKey         string `json:"api_key,omitempty"`
@@ -285,6 +286,7 @@ func (c editableConfig) Config() config.Config {
 	for _, b := range c.Backends {
 		cfg.Backends = append(cfg.Backends, config.Backend{
 			ID:             b.ID,
+			Type:           b.Type,
 			Server:         b.Server,
 			AuthType:       b.AuthType,
 			APIKey:         b.APIKey,
@@ -314,6 +316,7 @@ func (c editableConfig) Config() config.Config {
 
 type redactedBackend struct {
 	ID             string `json:"id"`
+	Type           string `json:"type"`
 	Server         string `json:"server"`
 	AuthType       string `json:"auth_type"`
 	User           string `json:"user,omitempty"`
@@ -341,6 +344,7 @@ func redactedConfig(cfg config.Config) map[string]any {
 	for _, b := range cfg.Backends {
 		item := redactedBackend{
 			ID:             b.ID,
+			Type:           b.Type,
 			Server:         b.Server,
 			AuthType:       b.AuthType,
 			User:           b.User,

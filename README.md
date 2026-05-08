@@ -9,17 +9,17 @@
 
 </details>
 
-`openlist-tvbox` 是一个面向 TVBox / CatVodSpider 的 OpenList / AList 中转网关。
+`openlist-tvbox` 是一个面向 TVBox / CatVodSpider 的 OpenList / AList / WebDAV 中转网关。
 
-它把服务端配置好的 OpenList / AList 网盘内容转换成 TVBox 可识别的分类、目录、搜索、播放数据。TVBox 客户端只访问本项目提供的网关接口，不直接接触 OpenList API key、账号密码或登录 token。
+它把服务端配置好的 OpenList / AList / WebDAV 服务内容转换成 TVBox 可识别的分类、目录、搜索、播放数据。TVBox 客户端只访问本项目提供的网关接口，不直接接触 OpenList API key、WebDAV 密码或登录 token。
 
 English documentation: [README.en.md](README.en.md)
 
 ## 功能特性
 
-- 支持 OpenList / AList v3 访问。
+- 支持 OpenList / AList v3 和只读 WebDAV 访问。
 - 支持匿名、API key、账号密码三种后端认证方式。
-- 支持多个 OpenList / AList 后端。
+- 支持多个 OpenList / AList / WebDAV 后端。
 - 支持多个 TVBox 订阅入口，每个订阅可以挂载不同后端、不同路径。
 - 支持目录浏览、排序筛选、详情页播放列表、搜索和播放地址解析。
 - 支持同目录字幕识别并随播放结果返回。
@@ -152,7 +152,7 @@ docker exec openlist-tvbox openlist-tvbox -hash-password 123456
 
 - `public_base_url`：TVBox 和反代后的 Admin UI 看到的网关外部地址。
 - `trust_forwarded_headers`：是否信任反向代理提供的 `X-Forwarded-For`、`X-Forwarded-Proto`、`X-Forwarded-Host`。
-- `backends`：真实 OpenList / AList 服务配置。
+- `backends`：真实 OpenList / AList / WebDAV 服务配置。
 - `subs`：对 TVBox 暴露的订阅入口。
 - `subs[].mounts`：把后端路径挂载成 TVBox 分类。
 - `access_code_hash`：订阅访问码 hash。
@@ -161,7 +161,9 @@ docker exec openlist-tvbox openlist-tvbox -hash-password 123456
 
 ## 安全说明
 
-- OpenList API key、账号密码和登录 token 只保存在网关服务端。
+- OpenList API key、账号密码、WebDAV 密码和登录 token 只保存在网关服务端。
+- WebDAV 播放和字幕地址会强制使用网关签名代理 URL，不会把上游 URL 或认证头下发给 TVBox。
+- WebDAV 挂载不支持 `refresh` 和 `search`。
 
 ## 常用命令
 打印起始配置：

@@ -12,6 +12,7 @@ export interface TVBoxSettings {
 
 export interface Backend {
   id: string;
+  type?: "openlist_v4" | "alist_v3" | "webdav";
   server: string;
   auth_type: "anonymous" | "api_key" | "password";
   api_key?: string;

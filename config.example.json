@@ -13,9 +13,18 @@
   "backends": [
     {
       "id": "main",
+      "type": "openlist_v4",
       "server": "https://openlist.example.com",
       "auth_type": "api_key",
       "api_key": "replace-with-server-side-api-key"
+    },
+    {
+      "id": "dav",
+      "type": "webdav",
+      "server": "https://dav.example.com/dav",
+      "auth_type": "password",
+      "user": "demo",
+      "password": "replace-with-webdav-password"
     }
   ],
   "subs": [
@@ -35,6 +44,15 @@
         }
       ],
       "mounts": [
+        {
+          "id": "webdav_movies",
+          "name": "WebDAV Movies",
+          "backend": "dav",
+          "path": "/Movies",
+          "search": false,
+          "refresh": false,
+          "hidden": false
+        },
         {
           "id": "movies",
           "name": "Movies",

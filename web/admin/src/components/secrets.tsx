@@ -101,6 +101,9 @@ export function SecretField({
           onChange={(event) => onValue(event.target.value)}
           placeholder={t("newSecret")}
           autoComplete="new-password"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
           name={inputName}
           autoFocus
         />

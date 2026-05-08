@@ -16,11 +16,11 @@ import (
 
 	"openlist-tvbox/internal/admin"
 	"openlist-tvbox/internal/auth"
+	backendclient "openlist-tvbox/internal/backend"
 	"openlist-tvbox/internal/config"
 	"openlist-tvbox/internal/gateway"
 	"openlist-tvbox/internal/logging"
 	"openlist-tvbox/internal/mount"
-	"openlist-tvbox/internal/openlist"
 )
 
 func main() {
@@ -76,13 +76,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	client := openlist.NewClient(http.DefaultClient, logger)
+	client := backendclient.NewClient(http.DefaultClient, logger)
 	service := mount.NewService(cfg, client, logger)
 	gatewayHandler := gateway.NewServer(service, logger)
 	logger.Info("config loaded", "path", absConfigPath(configPath), "backends", len(cfg.Backends), "subs", len(cfg.Subs))
 	var adminHandler *admin.Server
 	applyConfig := func(cfg *config.Config) {
-		reloadedClient := openlist.NewClient(http.DefaultClient, logger)
+		reloadedClient := backendclient.NewClient(http.DefaultClient, logger)
 		gatewayHandler.SetService(mount.NewService(cfg, reloadedClient, logger))
 		if adminHandler != nil {
 			adminHandler.ApplyConfig(cfg)
@@ -340,6 +340,7 @@ tvbox:
   changeable: 0
 backends:
   - id: main
+    type: openlist_v4
     server: https://openlist.example.com
     auth_type: api_key
     api_key_env: OPENLIST_MAIN_API_KEY

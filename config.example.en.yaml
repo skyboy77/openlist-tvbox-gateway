@@ -34,26 +34,29 @@ tvbox:
   quick_search: 0
   changeable: 0
 
-# OpenList / AList backend definitions.
-# A backend is a real OpenList server. Credentials stay server-side and are
+# OpenList / AList / WebDAV backend definitions.
+# A backend is a real upstream service. Credentials stay server-side and are
 # never emitted to TVBox subscriptions, list responses, play IDs, or subtitles.
 #
 # id must be unique and contain only letters, digits, underscore, or dash.
 # server must be an absolute URL. Trailing slash is trimmed automatically.
-# version defaults to v3; only v3 is accepted.
+# type defaults to openlist_v4. Supported values: openlist_v4, alist_v3, webdav.
 #
 # auth_type defaults to anonymous when omitted.
-# Supported auth_type values:
+# OpenList/AList auth_type values:
 #   anonymous: no credential fields are allowed.
 #   api_key: requires exactly one of api_key or api_key_env.
 #   password: requires user plus exactly one of password or password_env.
 #     The gateway automatically sends Client-Id: openlist-tvbox-<backend.id>
 #     for AList v3 device/session compatibility.
+# WebDAV currently supports anonymous and password; playback and subtitles are
+# always returned as gateway proxy URLs, and refresh/search are not supported.
 #
 # Prefer *_env fields so secrets are read from environment variables instead of
 # being stored in this file.
 backends:
   - id: main
+    type: openlist_v4
     server: https://openlist.example.com
     auth_type: api_key
     # api_key auth sends this value as Authorization when calling OpenList.
@@ -64,6 +67,7 @@ backends:
     # api_key: replace-with-server-side-api-key
 
   - id: backup
+    type: alist_v3
     server: https://backup-openlist.example.com
     auth_type: password
     # password auth logs in server-side, caches the token in memory, and retries
@@ -73,6 +77,13 @@ backends:
     # Direct value is also supported for simple deployments, but it stores the
     # secret in this file. Set exactly one of password or password_env.
     # password: replace-with-backend-password
+
+  - id: dav
+    type: webdav
+    server: https://dav.example.com/remote.php/dav/files/demo
+    auth_type: password
+    user: demo
+    password_env: WEBDAV_PASSWORD
 
 # TVBox subscription interfaces.
 # Each item exposes one independent subscription URL. Each subscription owns its
@@ -155,6 +166,7 @@ subs:
 
         # Whether this mount participates in aggregated search.
         # Default: true. Set false when the category should be browsable but not searched.
+        # WebDAV backends do not support search; mounts using WebDAV backends must set this to false.
         search: true
 
         # Shows a "刷新此目录" action in directory listings.
@@ -173,6 +185,14 @@ subs:
         backend: backup
         path: /Media/Movies
         search: true
+        refresh: false
+        hidden: false
+
+      - id: webdav_movies
+        name: WebDAV Movies
+        backend: dav
+        path: /Movies
+        search: false
         refresh: false
         hidden: false
 

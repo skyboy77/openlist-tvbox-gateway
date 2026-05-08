@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"openlist-tvbox/internal/backend"
 	"openlist-tvbox/internal/catvod"
 	"openlist-tvbox/internal/config"
 	"openlist-tvbox/internal/i18n"
@@ -97,19 +98,27 @@ func (s *Service) HomeForSub(subID string) catvod.Result {
 }
 
 func (s *Service) CategoryForSub(ctx context.Context, subID, tid, sortType, order string) (catvod.Result, error) {
+	if isFileScopedID(tid) {
+		return s.DetailForSub(ctx, subID, tid)
+	}
 	ref, err := s.resolveScopedID(subID, tid)
 	if err != nil {
 		return catvod.Result{}, err
 	}
 	items, err := s.client.List(ctx, ref.backend, ref.backendPath, ref.password)
 	if err != nil {
+		if ref.relPath != "" {
+			if item, getErr := s.client.Get(ctx, ref.backend, ref.backendPath, ref.password); getErr == nil && !utils.IsFolder(item.Type) {
+				return s.DetailForSub(ctx, subID, tid)
+			}
+		}
 		return catvod.Result{}, err
 	}
 	folders, files := splitItems(items)
 	sortItems(sortType, order, folders)
 	sortItems(sortType, order, files)
 	vods := make([]catvod.Vod, 0, len(folders)+len(files))
-	if ref.mount.Refresh {
+	if ref.mount.Refresh && ref.backend.Type != "webdav" {
 		vods = append(vods, refreshDirectoryVod(ref.mount, ref.relPath, ref.scope.lang))
 	}
 	if hasMedia(files) {
@@ -133,6 +142,9 @@ func (s *Service) RefreshForSub(ctx context.Context, subID, id string) (catvod.R
 	}
 	if !ref.mount.Refresh {
 		return catvod.Result{}, errors.New("refresh is not enabled for this mount")
+	}
+	if ref.backend.Type == "webdav" {
+		return catvod.Result{}, errors.New("refresh is not supported for webdav mounts")
 	}
 	if _, err := s.client.RefreshList(ctx, ref.backend, ref.backendPath, ref.password); err != nil {
 		return catvod.Result{}, err
@@ -234,6 +246,9 @@ func (s *Service) SearchForSub(ctx context.Context, subID, keyword string) (catv
 		}
 		mountCfg := m
 		backend := s.backends[m.Backend]
+		if backend.Type == "webdav" {
+			continue
+		}
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -262,6 +277,10 @@ func (s *Service) SearchForSub(ctx context.Context, subID, keyword string) (catv
 }
 
 func (s *Service) PlayForSub(ctx context.Context, subID, encodedID string) (catvod.Result, error) {
+	return s.PlayForSubWithProxy(ctx, subID, encodedID, nil)
+}
+
+func (s *Service) PlayForSubWithProxy(ctx context.Context, subID, encodedID string, proxyURL func(id, name, kind string) string) (catvod.Result, error) {
 	token, ok := decodePlayToken(encodedID)
 	if !ok || token.ID == "" {
 		return catvod.Result{}, errors.New("invalid play id")
@@ -274,6 +293,9 @@ func (s *Service) PlayForSub(ctx context.Context, subID, encodedID string) (catv
 	if err != nil {
 		return catvod.Result{}, err
 	}
+	if ref.backend.Type == "webdav" && proxyURL == nil {
+		return catvod.Result{}, errors.New("webdav playback requires gateway proxy")
+	}
 	subs := []catvod.Sub{}
 	for _, sub := range token.Subs {
 		subRef, err := s.resolveScopedID(subID, sub.ID)
@@ -281,15 +303,50 @@ func (s *Service) PlayForSub(ctx context.Context, subID, encodedID string) (catv
 			continue
 		}
 		subItem, err := s.client.Get(ctx, subRef.backend, subRef.backendPath, subRef.password)
-		if err != nil || subItem.Link() == "" {
+		if err != nil {
 			continue
 		}
-		subs = append(subs, catvod.Sub{Name: sub.Name, Ext: sub.Ext, Format: subtitleFormat(sub.Ext), URL: subItem.Link()})
+		url := subItem.Link()
+		if subRef.backend.Type == "webdav" {
+			if proxyURL == nil {
+				continue
+			}
+			url = proxyURL(sub.ID, sub.Name, "subtitle")
+		}
+		if url == "" {
+			continue
+		}
+		subs = append(subs, catvod.Sub{Name: sub.Name, Ext: sub.Ext, Format: subtitleFormat(sub.Ext), URL: url})
 	}
 	parse := 0
 	subt := ""
 	if len(subs) > 0 {
 		subt = subs[0].URL
 	}
-	return catvod.Result{Parse: &parse, URL: item.Link(), Subt: subt, Header: playHeader(item.Link(), ref.mount.PlayHeaders), Subs: subs}, nil
+	playURL := item.Link()
+	headers := playHeader(playURL, ref.mount.PlayHeaders)
+	if ref.backend.Type == "webdav" {
+		playURL = proxyURL(token.ID, item.Name, "media")
+		headers = map[string]string{}
+	}
+	return catvod.Result{Parse: &parse, URL: playURL, Subt: subt, Header: headers, Subs: subs}, nil
+}
+
+type streamClient interface {
+	Open(ctx context.Context, backend config.Backend, path string, opts backend.OpenOptions) (*backend.Stream, error)
+}
+
+func (s *Service) OpenProxyForSub(ctx context.Context, subID, id, method, rangeHeader string) (*backend.Stream, error) {
+	ref, err := s.resolveScopedID(subID, id)
+	if err != nil {
+		return nil, err
+	}
+	if ref.backend.Type != "webdav" {
+		return nil, errors.New("file proxy is not supported for this backend")
+	}
+	client, ok := s.client.(streamClient)
+	if !ok {
+		return nil, errors.New("file proxy client is not available")
+	}
+	return client.Open(ctx, ref.backend, ref.backendPath, backend.OpenOptions{Method: method, Range: rangeHeader})
 }

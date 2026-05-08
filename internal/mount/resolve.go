@@ -18,11 +18,14 @@ type resolved struct {
 	password    string
 }
 
+const fileIDPrefix = "__file__/"
+
 func (s *Service) resolveScopedID(subID, id string) (resolved, error) {
 	id = strings.TrimSpace(id)
 	if id == "" {
 		return resolved{}, errors.New("empty id")
 	}
+	id = stripFileIDPrefix(id)
 	sc, err := s.scope(subID)
 	if err != nil {
 		return resolved{}, err
@@ -41,6 +44,21 @@ func (s *Service) resolveScopedID(subID, id string) (resolved, error) {
 		return resolved{}, err
 	}
 	return resolved{scope: sc, mount: m, backend: s.backends[m.Backend], relPath: cleanRel, backendPath: backendPath, password: s.password(m, backendPath)}, nil
+}
+
+func fileScopedID(id string) string {
+	if strings.HasPrefix(id, fileIDPrefix) {
+		return id
+	}
+	return fileIDPrefix + id
+}
+
+func isFileScopedID(id string) bool {
+	return strings.HasPrefix(strings.TrimSpace(id), fileIDPrefix)
+}
+
+func stripFileIDPrefix(id string) string {
+	return strings.TrimPrefix(id, fileIDPrefix)
 }
 
 func (s *Service) scope(subID string) (*scope, error) {

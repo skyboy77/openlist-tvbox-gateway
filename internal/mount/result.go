@@ -32,6 +32,10 @@ func serviceErrorKind(err error) string {
 		return "upstream_request"
 	case strings.Contains(msg, "openlist"):
 		return "upstream"
+	case strings.Contains(msg, "webdav request failed"):
+		return "upstream_request"
+	case strings.Contains(msg, "webdav"):
+		return "upstream"
 	default:
 		return "request"
 	}

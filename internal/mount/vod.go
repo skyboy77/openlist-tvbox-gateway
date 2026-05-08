@@ -23,11 +23,13 @@ func (s *Service) vodForItem(m config.Mount, parentRel string, item openlist.Ite
 			remark = utils.FormatSize(item.Size)
 		}
 	}
-	vod := catvod.Vod{VodID: m.ID + "/" + itemRel, VodName: item.Name, VodPic: pic, VodRemarks: remark}
+	id := m.ID + "/" + itemRel
+	vod := catvod.Vod{VodID: id, VodName: item.Name, VodPic: pic, VodRemarks: remark}
 	if utils.IsFolder(item.Type) {
 		vod.TypeFlag = "folder"
 		vod.VodTag = "folder"
 	} else {
+		vod.VodID = fileScopedID(id)
 		vod.VodTag = "file"
 	}
 	return vod

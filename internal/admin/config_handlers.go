@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
+	backendclient "openlist-tvbox/internal/backend"
 	"openlist-tvbox/internal/config"
-	"openlist-tvbox/internal/openlist"
 )
 
 func (s *Server) meta(w http.ResponseWriter, r *http.Request) {
@@ -66,6 +66,7 @@ func (s *Server) testBackend(w http.ResponseWriter, r *http.Request) {
 	}
 	backend := config.Backend{
 		ID:             req.ID,
+		Type:           req.Type,
 		Server:         req.Server,
 		AuthType:       req.AuthType,
 		APIKey:         req.APIKey,
@@ -89,7 +90,7 @@ func (s *Server) testBackend(w http.ResponseWriter, r *http.Request) {
 		writeConfigAdminError(w, http.StatusBadRequest, err)
 		return
 	}
-	client := openlist.NewClient(&http.Client{Timeout: 12 * time.Second}, s.logger)
+	client := backendclient.NewClient(&http.Client{Timeout: 12 * time.Second}, s.logger)
 	ctx, cancel := context.WithTimeout(r.Context(), 12*time.Second)
 	defer cancel()
 	if _, err := client.List(ctx, testCfg.Backends[0], "/", ""); err != nil {

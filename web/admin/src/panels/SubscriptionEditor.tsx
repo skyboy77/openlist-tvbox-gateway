@@ -31,6 +31,7 @@ function normalizeNestedRowKeys(prefix: string, state: NestedRowKeysState, paren
 
 export function SubscriptionEditor({ config, setConfig, t }: EditorProps) {
   const backendIDs = useMemo(() => config.backends.map((backend) => backend.id).filter(Boolean), [config.backends]);
+  const backendTypeByID = useMemo(() => Object.fromEntries(config.backends.map((backend) => [backend.id, backend.type || "openlist_v4"])), [config.backends]);
   const subRows = useStableRowKeys("sub-row", config.subs.length);
   const mountParentLengths = useMemo(() => config.subs.map((sub, index) => [subRows.keys[index], sub.mounts.length] as const), [config.subs, subRows.keys]);
   const liveParentLengths = useMemo(() => config.subs.map((sub, index) => [subRows.keys[index], sub.lives?.length || 0] as const), [config.subs, subRows.keys]);
@@ -89,6 +90,8 @@ export function SubscriptionEditor({ config, setConfig, t }: EditorProps) {
   function addMount(subIndex: number) {
     const sub = config.subs[subIndex];
     const id = uniqueID("mount", sub.mounts.map((item) => item.id));
+    const backend = backendIDs[0] || "";
+    const webdavBackend = backendTypeByID[backend] === "webdav";
     const subRowKey = subRows.keys[subIndex];
     const mountRowKeys = mountRows.keysByParent[subRowKey] || [];
     const rowKey = `mount-row-${mountRows.nextID}`;
@@ -98,7 +101,7 @@ export function SubscriptionEditor({ config, setConfig, t }: EditorProps) {
     });
     setNewMountRows((current) => new Set(current).add(rowKey));
     updateSub(subIndex, {
-      mounts: [...sub.mounts, { id, name: id, backend: backendIDs[0] || "", path: "/", search: true, refresh: false, hidden: false }],
+      mounts: [...sub.mounts, { id, name: id, backend, path: "/", search: !webdavBackend, refresh: false, hidden: false }],
     });
   }
 
@@ -258,7 +261,13 @@ export function SubscriptionEditor({ config, setConfig, t }: EditorProps) {
                     <input value={mount.name || ""} onChange={(event) => updateMount(subIndex, mountIndex, { name: event.target.value })} autoComplete="off" name={`mount-name-${sub.id || subIndex}-${mount.id || mountIndex}`} />
                   </Field>
                   <Field label={t("backend")} help={t("helpMountBackend")}>
-                    <select value={mount.backend} onChange={(event) => updateMount(subIndex, mountIndex, { backend: event.target.value })}>
+                    <select
+                      value={mount.backend}
+                      onChange={(event) => {
+                        const backend = event.target.value;
+                        updateMount(subIndex, mountIndex, { backend, search: backendTypeByID[backend] === "webdav" ? false : mount.search, refresh: backendTypeByID[backend] === "webdav" ? false : mount.refresh });
+                      }}
+                    >
                       <option value="">{t("selectBackend")}</option>
                       {backendIDs.map((id) => (
                         <option key={id} value={id}>
@@ -294,8 +303,8 @@ export function SubscriptionEditor({ config, setConfig, t }: EditorProps) {
                   />
                 </Field>
                 <div className="toggles">
-                  <label><input type="checkbox" checked={mount.search !== false} onChange={(event) => updateMount(subIndex, mountIndex, { search: event.target.checked })} /> <span>{t("search")}</span><HelpTip text={t("helpMountSearch")} /></label>
-                  <label><input type="checkbox" checked={Boolean(mount.refresh)} onChange={(event) => updateMount(subIndex, mountIndex, { refresh: event.target.checked })} /> <span>{t("refresh")}</span><HelpTip text={t("helpMountRefresh")} /></label>
+                  <label><input type="checkbox" checked={mount.search !== false && backendTypeByID[mount.backend] !== "webdav"} disabled={backendTypeByID[mount.backend] === "webdav"} onChange={(event) => updateMount(subIndex, mountIndex, { search: event.target.checked })} /> <span>{t("search")}</span><HelpTip text={backendTypeByID[mount.backend] === "webdav" ? t("helpMountSearchWebDAV") : t("helpMountSearch")} /></label>
+                  <label><input type="checkbox" checked={Boolean(mount.refresh) && backendTypeByID[mount.backend] !== "webdav"} disabled={backendTypeByID[mount.backend] === "webdav"} onChange={(event) => updateMount(subIndex, mountIndex, { refresh: event.target.checked })} /> <span>{t("refresh")}</span><HelpTip text={backendTypeByID[mount.backend] === "webdav" ? t("helpMountRefreshWebDAV") : t("helpMountRefresh")} /></label>
                   <label><input type="checkbox" checked={Boolean(mount.hidden)} onChange={(event) => updateMount(subIndex, mountIndex, { hidden: event.target.checked })} /> <span>{t("hidden")}</span><HelpTip text={t("helpMountHidden")} /></label>
                 </div>
               </CollapsibleMount>

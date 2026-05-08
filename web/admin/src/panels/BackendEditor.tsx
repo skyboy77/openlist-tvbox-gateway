@@ -20,6 +20,13 @@ export function BackendEditor({ config, setConfig, t }: EditorProps) {
     setConfig((current) => ({
       ...current,
       backends: current.backends.map((backend, i) => (i === index ? normalizeBackend({ ...backend, ...patch }) : backend)),
+      subs:
+        patch.type === "webdav"
+          ? current.subs.map((sub) => ({
+              ...sub,
+              mounts: sub.mounts.map((mount) => (mount.backend === current.backends[index]?.id ? { ...mount, search: false, refresh: false } : mount)),
+            }))
+          : current.subs,
     }));
   }
 
@@ -29,7 +36,7 @@ export function BackendEditor({ config, setConfig, t }: EditorProps) {
     setNewBackendRows((current) => new Set(current).add(rowKey));
     setConfig((current) => ({
       ...current,
-      backends: [...current.backends, { id, server: "https://openlist.example.com", auth_type: "anonymous", version: "v3" }],
+      backends: [...current.backends, { id, type: "openlist_v4", server: "https://openlist.example.com", auth_type: "anonymous" }],
     }));
   }
 
@@ -83,15 +90,19 @@ export function BackendEditor({ config, setConfig, t }: EditorProps) {
             <Field label={t("server")} help={t("helpBackendServer")}>
               <input value={backend.server} onChange={(event) => updateBackend(index, { server: event.target.value })} autoComplete="off" name={`backend-server-${backend.id || index}`} />
             </Field>
+            <Field label={t("backendType")} help={t("helpBackendType")}>
+              <select value={backend.type || "openlist_v4"} onChange={(event) => updateBackend(index, { type: event.target.value as Backend["type"] })}>
+                <option value="openlist_v4">OpenList v4</option>
+                <option value="alist_v3">AList v3</option>
+                <option value="webdav">WebDAV</option>
+              </select>
+            </Field>
             <Field label={t("auth")} help={t("helpBackendAuth")}>
               <select value={backend.auth_type || "anonymous"} onChange={(event) => updateBackend(index, { auth_type: event.target.value as Backend["auth_type"] })}>
                 <option value="anonymous">{t("anonymous")}</option>
-                <option value="api_key">{t("apiKey")}</option>
+                {backend.type !== "webdav" && <option value="api_key">{t("apiKey")}</option>}
                 <option value="password">{t("password")}</option>
               </select>
-            </Field>
-            <Field label={t("version")} help={t("helpBackendVersion")}>
-              <input value={backend.version || "v3"} onChange={(event) => updateBackend(index, { version: event.target.value })} autoComplete="off" name={`backend-version-${backend.id || index}`} />
             </Field>
           </div>
           {backend.auth_type === "api_key" && (
@@ -112,13 +123,13 @@ export function BackendEditor({ config, setConfig, t }: EditorProps) {
                 <input
                   value={backend.user || ""}
                   onChange={(event) => updateBackend(index, { user: event.target.value })}
-                  autoComplete="off"
-                  name={`backend-user-${backend.id || index}`}
+                  autoComplete="new-password"
+                  name={`backend-principal-${rowKey}`}
                 />
               </Field>
               <SecretField
                 label={t("password")}
-                inputName={`backend-password-${backend.id || index}`}
+                inputName={`backend-secret-${rowKey}`}
                 set={Boolean(backend.password_set)}
                 action={backend.password_action || "keep"}
                 value={backend.password || ""}
