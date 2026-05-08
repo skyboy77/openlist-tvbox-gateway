@@ -6,6 +6,8 @@ FROM busybox:1.37
 ARG TARGETPLATFORM
 COPY ${TARGETPLATFORM}/openlist-tvbox /usr/bin/openlist-tvbox
 COPY --from=certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY LICENSE THIRD_PARTY_NOTICES.md /usr/share/doc/openlist-tvbox/
+COPY licenses /usr/share/doc/openlist-tvbox/licenses
 
 WORKDIR /config
 ENV OPENLIST_TVBOX_CONFIG=config.yaml

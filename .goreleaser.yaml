@@ -44,6 +44,12 @@ archives:
       {{- else if eq .Arch "386" }}i386
       {{- else }}{{ .Arch }}{{ end }}
       {{- if .Arm }}v{{ .Arm }}{{ end }}
+    files:
+      - LICENSE
+      - README.md
+      - README.en.md
+      - THIRD_PARTY_NOTICES.md
+      - licenses/**/*
 
 checksum:
   name_template: checksums.txt
@@ -64,6 +70,10 @@ dockers_v2:
     ids:
       - openlist-tvbox
     dockerfile: Dockerfile.goreleaser
+    extra_files:
+      - LICENSE
+      - THIRD_PARTY_NOTICES.md
+      - licenses
     images:
       - "{{ .Env.IMAGE_REPOSITORY }}"
     tags:
