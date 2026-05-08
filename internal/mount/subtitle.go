@@ -6,11 +6,11 @@ import (
 	"strings"
 
 	"openlist-tvbox/internal/config"
-	"openlist-tvbox/internal/openlist"
+	"openlist-tvbox/internal/storage"
 	"openlist-tvbox/internal/utils"
 )
 
-func (s *Service) findSubs(m config.Mount, parentRel string, items []openlist.Item, mediaName, lang string) []playSubToken {
+func (s *Service) findSubs(m config.Mount, parentRel string, items []storage.Item, mediaName, lang string) []playSubToken {
 	subs := []playSubToken{}
 	mediaBase := subtitleMatchBase(mediaName)
 	for _, item := range items {

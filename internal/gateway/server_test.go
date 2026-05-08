@@ -19,30 +19,30 @@ import (
 	"openlist-tvbox/internal/backend"
 	"openlist-tvbox/internal/config"
 	"openlist-tvbox/internal/mount"
-	"openlist-tvbox/internal/openlist"
+	"openlist-tvbox/internal/storage"
 )
 
-type fakeOpenListClient struct{}
+type fakeBackendClient struct{}
 
-func (fakeOpenListClient) List(context.Context, config.Backend, string, string) ([]openlist.Item, error) {
+func (fakeBackendClient) List(context.Context, config.Backend, string, string) ([]storage.Item, error) {
 	return nil, nil
 }
 
-func (fakeOpenListClient) RefreshList(context.Context, config.Backend, string, string) ([]openlist.Item, error) {
+func (fakeBackendClient) RefreshList(context.Context, config.Backend, string, string) ([]storage.Item, error) {
 	return nil, nil
 }
 
-func (fakeOpenListClient) Get(context.Context, config.Backend, string, string) (openlist.Item, error) {
-	return openlist.Item{}, nil
+func (fakeBackendClient) Get(context.Context, config.Backend, string, string) (storage.Item, error) {
+	return storage.Item{}, nil
 }
 
-func (fakeOpenListClient) Search(context.Context, config.Backend, string, string, string) ([]openlist.Item, error) {
+func (fakeBackendClient) Search(context.Context, config.Backend, string, string, string) ([]storage.Item, error) {
 	return nil, nil
 }
 
 func TestConfiguredSubPathReturnsScopedSubscription(t *testing.T) {
 	cfg := testGatewayConfig(t)
-	handler := NewServer(mount.NewService(cfg, fakeOpenListClient{}, nil), nil)
+	handler := NewServer(mount.NewService(cfg, fakeBackendClient{}, nil), nil)
 	req := httptest.NewRequest(http.MethodGet, "http://gateway.example.com/custom/shows", nil)
 	rec := httptest.NewRecorder()
 
@@ -75,7 +75,7 @@ func TestConfiguredSubPathReturnsScopedSubscription(t *testing.T) {
 func TestUnconfiguredSubPathReturnsNotFound(t *testing.T) {
 	cfg := testGatewayConfig(t)
 	cfg.Subs[0].Path = "/custom/movies"
-	handler := NewServer(mount.NewService(cfg, fakeOpenListClient{}, nil), nil)
+	handler := NewServer(mount.NewService(cfg, fakeBackendClient{}, nil), nil)
 	req := httptest.NewRequest(http.MethodGet, "http://gateway.example.com/sub", nil)
 	rec := httptest.NewRecorder()
 
@@ -87,7 +87,7 @@ func TestUnconfiguredSubPathReturnsNotFound(t *testing.T) {
 }
 
 func TestSubscriptionAliasesDoNotFallbackToFirstSub(t *testing.T) {
-	handler := NewServer(mount.NewService(testGatewayConfig(t), fakeOpenListClient{}, nil), nil)
+	handler := NewServer(mount.NewService(testGatewayConfig(t), fakeBackendClient{}, nil), nil)
 	for _, path := range []string{"/config.json", "/tvbox.json"} {
 		req := httptest.NewRequest(http.MethodGet, "http://gateway.example.com"+path, nil)
 		rec := httptest.NewRecorder()
@@ -101,7 +101,7 @@ func TestSubscriptionAliasesDoNotFallbackToFirstSub(t *testing.T) {
 }
 
 func TestUnscopedTVBoxAPIDoesNotFallbackToFirstSub(t *testing.T) {
-	handler := NewServer(mount.NewService(testGatewayConfig(t), fakeOpenListClient{}, nil), nil)
+	handler := NewServer(mount.NewService(testGatewayConfig(t), fakeBackendClient{}, nil), nil)
 	req := httptest.NewRequest(http.MethodGet, "http://gateway.example.com/api/tvbox/home", nil)
 	rec := httptest.NewRecorder()
 
@@ -113,7 +113,7 @@ func TestUnscopedTVBoxAPIDoesNotFallbackToFirstSub(t *testing.T) {
 }
 
 func TestIconRouteServesOnlyBuiltInIcons(t *testing.T) {
-	handler := NewServer(mount.NewService(testGatewayConfig(t), fakeOpenListClient{}, nil), nil)
+	handler := NewServer(mount.NewService(testGatewayConfig(t), fakeBackendClient{}, nil), nil)
 	for _, path := range []string{"/assets/icons/folder.png", "/assets/icons/logo.svg", "/assets/icons/video.png", "/assets/icons/audio.png", "/assets/icons/file.png", "/assets/icons/playlist.png", "/assets/icons/refresh.png"} {
 		req := httptest.NewRequest(http.MethodGet, "http://gateway.example.com"+path, nil)
 		rec := httptest.NewRecorder()
@@ -142,7 +142,7 @@ func TestIconRouteServesOnlyBuiltInIcons(t *testing.T) {
 
 func TestScopedAPIUsesSubMounts(t *testing.T) {
 	cfg := testGatewayConfig(t)
-	handler := NewServer(mount.NewService(cfg, fakeOpenListClient{}, nil), nil)
+	handler := NewServer(mount.NewService(cfg, fakeBackendClient{}, nil), nil)
 	req := httptest.NewRequest(http.MethodGet, "http://gateway.example.com/s/shows/api/tvbox/home", nil)
 	rec := httptest.NewRecorder()
 
@@ -230,7 +230,7 @@ type swapDuringListClient struct {
 	once      sync.Once
 }
 
-func (s *swapDuringListClient) List(_ context.Context, backend config.Backend, path, _ string) ([]openlist.Item, error) {
+func (s *swapDuringListClient) List(_ context.Context, backend config.Backend, path, _ string) ([]storage.Item, error) {
 	s.mu.Lock()
 	s.backendID = backend.ID
 	s.path = path
@@ -242,15 +242,15 @@ func (s *swapDuringListClient) List(_ context.Context, backend config.Backend, p
 	return nil, nil
 }
 
-func (s *swapDuringListClient) RefreshList(context.Context, config.Backend, string, string) ([]openlist.Item, error) {
+func (s *swapDuringListClient) RefreshList(context.Context, config.Backend, string, string) ([]storage.Item, error) {
 	return nil, nil
 }
 
-func (s *swapDuringListClient) Get(context.Context, config.Backend, string, string) (openlist.Item, error) {
-	return openlist.Item{}, nil
+func (s *swapDuringListClient) Get(context.Context, config.Backend, string, string) (storage.Item, error) {
+	return storage.Item{}, nil
 }
 
-func (s *swapDuringListClient) Search(context.Context, config.Backend, string, string, string) ([]openlist.Item, error) {
+func (s *swapDuringListClient) Search(context.Context, config.Backend, string, string, string) ([]storage.Item, error) {
 	return nil, nil
 }
 
@@ -292,7 +292,7 @@ func TestScopedRefreshAPIUsesSubMounts(t *testing.T) {
 func TestProtectedSubSubscriptionIsPublicButAPIRequiresCode(t *testing.T) {
 	cfg := testGatewayConfig(t)
 	cfg.Subs[1].AccessCodeHash = mustHash(t, "123456")
-	handler := NewServer(mount.NewService(cfg, fakeOpenListClient{}, nil), nil)
+	handler := NewServer(mount.NewService(cfg, fakeBackendClient{}, nil), nil)
 
 	subReq := httptest.NewRequest(http.MethodGet, "http://gateway.example.com/custom/shows", nil)
 	subRec := httptest.NewRecorder()
@@ -312,7 +312,7 @@ func TestProtectedSubSubscriptionIsPublicButAPIRequiresCode(t *testing.T) {
 func TestProtectedSubAPIAcceptsAccessToken(t *testing.T) {
 	cfg := testGatewayConfig(t)
 	cfg.Subs[1].AccessCodeHash = mustHash(t, "123456")
-	handler := NewServer(mount.NewService(cfg, fakeOpenListClient{}, nil), nil)
+	handler := NewServer(mount.NewService(cfg, fakeBackendClient{}, nil), nil)
 	token := authenticateSub(t, handler, "shows", "123456")
 	req := httptest.NewRequest(http.MethodGet, "http://gateway.example.com/s/shows/api/tvbox/home", nil)
 	req.Header.Set("X-Access-Token", token)
@@ -328,7 +328,7 @@ func TestProtectedSubAPIAcceptsAccessToken(t *testing.T) {
 func TestProtectedSubAPIRejectsAccessTokenInURL(t *testing.T) {
 	cfg := testGatewayConfig(t)
 	cfg.Subs[1].AccessCodeHash = mustHash(t, "123456")
-	handler := NewServer(mount.NewService(cfg, fakeOpenListClient{}, nil), nil)
+	handler := NewServer(mount.NewService(cfg, fakeBackendClient{}, nil), nil)
 	token := authenticateSub(t, handler, "shows", "123456")
 	req := httptest.NewRequest(http.MethodGet, "http://gateway.example.com/s/shows/api/tvbox/home?access_token="+token, nil)
 	rec := httptest.NewRecorder()
@@ -343,7 +343,7 @@ func TestProtectedSubAPIRejectsAccessTokenInURL(t *testing.T) {
 func TestProtectedSubAPIRejectsAccessCodeOnResourceRequest(t *testing.T) {
 	cfg := testGatewayConfig(t)
 	cfg.Subs[1].AccessCodeHash = mustHash(t, "123456")
-	handler := NewServer(mount.NewService(cfg, fakeOpenListClient{}, nil), nil)
+	handler := NewServer(mount.NewService(cfg, fakeBackendClient{}, nil), nil)
 	req := httptest.NewRequest(http.MethodGet, "http://gateway.example.com/s/shows/api/tvbox/home?code=123456", nil)
 	rec := httptest.NewRecorder()
 
@@ -357,12 +357,12 @@ func TestProtectedSubAPIRejectsAccessCodeOnResourceRequest(t *testing.T) {
 func TestProtectedSubAccessTokenInvalidAfterAccessCodeChange(t *testing.T) {
 	cfg := testGatewayConfig(t)
 	cfg.Subs[1].AccessCodeHash = mustHash(t, "123456")
-	handler := NewServer(mount.NewService(cfg, fakeOpenListClient{}, nil), nil)
+	handler := NewServer(mount.NewService(cfg, fakeBackendClient{}, nil), nil)
 	token := authenticateSub(t, handler, "shows", "123456")
 
 	next := testGatewayConfig(t)
 	next.Subs[1].AccessCodeHash = mustHash(t, "654321")
-	handler.SetService(mount.NewService(next, fakeOpenListClient{}, nil))
+	handler.SetService(mount.NewService(next, fakeBackendClient{}, nil))
 
 	req := httptest.NewRequest(http.MethodGet, "http://gateway.example.com/s/shows/api/tvbox/home", nil)
 	req.Header.Set("X-Access-Token", token)
@@ -377,7 +377,7 @@ func TestSubscriptionLiveUsesGatewayProxyURL(t *testing.T) {
 	cfg := testGatewayConfig(t)
 	cfg.PublicBaseURL = "http://gateway.example.com"
 	cfg.Subs[1].Lives = []config.Live{{Name: "Live", URL: "https://live.example.com/list.m3u", PlayerType: 2}}
-	handler := NewServer(mount.NewService(cfg, fakeOpenListClient{}, nil), nil)
+	handler := NewServer(mount.NewService(cfg, fakeBackendClient{}, nil), nil)
 	req := httptest.NewRequest(http.MethodGet, "http://gateway.example.com/custom/shows", nil)
 	rec := httptest.NewRecorder()
 
@@ -406,7 +406,7 @@ func TestLiveProxyFetchesConfiguredLiveListOnly(t *testing.T) {
 
 	cfg := testGatewayConfig(t)
 	cfg.Subs[1].Lives = []config.Live{{Name: "Live", URL: liveServer.URL + "/list.m3u"}}
-	handler := NewServer(mount.NewService(cfg, fakeOpenListClient{}, nil), nil)
+	handler := NewServer(mount.NewService(cfg, fakeBackendClient{}, nil), nil)
 	req := httptest.NewRequest(http.MethodGet, "http://gateway.example.com/s/shows/live/0/list.m3u", nil)
 	rec := httptest.NewRecorder()
 
@@ -432,7 +432,7 @@ func TestLiveProxyRejectsPlaylistAboveDeclaredSizeLimit(t *testing.T) {
 
 	cfg := testGatewayConfig(t)
 	cfg.Subs[1].Lives = []config.Live{{Name: "Live", URL: liveServer.URL + "/list.m3u"}}
-	handler := NewServer(mount.NewService(cfg, fakeOpenListClient{}, nil), nil)
+	handler := NewServer(mount.NewService(cfg, fakeBackendClient{}, nil), nil)
 	req := httptest.NewRequest(http.MethodGet, "http://gateway.example.com/s/shows/live/0/list.m3u", nil)
 	rec := httptest.NewRecorder()
 
@@ -455,7 +455,7 @@ func TestLiveProxyRejectsPlaylistAboveReadSizeLimit(t *testing.T) {
 
 	cfg := testGatewayConfig(t)
 	cfg.Subs[1].Lives = []config.Live{{Name: "Live", URL: liveServer.URL + "/list.m3u"}}
-	handler := NewServer(mount.NewService(cfg, fakeOpenListClient{}, nil), nil)
+	handler := NewServer(mount.NewService(cfg, fakeBackendClient{}, nil), nil)
 	req := httptest.NewRequest(http.MethodGet, "http://gateway.example.com/s/shows/live/0/list.m3u", nil)
 	rec := httptest.NewRecorder()
 
@@ -475,7 +475,7 @@ func TestLiveProxyRejectsPlaylistAboveReadSizeLimit(t *testing.T) {
 func TestLiveProxyRejectsUnknownLiveIndex(t *testing.T) {
 	cfg := testGatewayConfig(t)
 	cfg.Subs[1].Lives = []config.Live{{Name: "Live", URL: "https://live.example.com/list.m3u"}}
-	handler := NewServer(mount.NewService(cfg, fakeOpenListClient{}, nil), nil)
+	handler := NewServer(mount.NewService(cfg, fakeBackendClient{}, nil), nil)
 	req := httptest.NewRequest(http.MethodGet, "http://gateway.example.com/s/shows/live/1/list.m3u", nil)
 	rec := httptest.NewRecorder()
 
@@ -491,7 +491,7 @@ func TestLiveProxyLogsDoNotLeakConfiguredLiveURL(t *testing.T) {
 	cfg.Subs[1].Lives = []config.Live{{Name: "Live", URL: "http://127.0.0.1:1/list.m3u?token=secret-live-token"}}
 	var logs bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&logs, nil))
-	handler := NewServer(mount.NewService(cfg, fakeOpenListClient{}, nil), logger)
+	handler := NewServer(mount.NewService(cfg, fakeBackendClient{}, nil), logger)
 	req := httptest.NewRequest(http.MethodGet, "http://gateway.example.com/s/shows/live/0/list.m3u", nil)
 	rec := httptest.NewRecorder()
 
@@ -514,7 +514,7 @@ func TestLiveProxyLogsDoNotLeakConfiguredLiveURL(t *testing.T) {
 func TestProtectedSubAPIMissingCodeDoesNotConsumeCooldown(t *testing.T) {
 	cfg := testGatewayConfig(t)
 	cfg.Subs[1].AccessCodeHash = mustHash(t, "123456")
-	handler := NewServer(mount.NewService(cfg, fakeOpenListClient{}, nil), nil)
+	handler := NewServer(mount.NewService(cfg, fakeBackendClient{}, nil), nil)
 
 	for i := 0; i < authFailureLimit; i++ {
 		req := httptest.NewRequest(http.MethodGet, "http://gateway.example.com/s/shows/api/tvbox/home", nil)
@@ -536,7 +536,7 @@ func TestProtectedSubAPIMissingCodeDoesNotConsumeCooldown(t *testing.T) {
 func TestAuthEndpointAcceptsJSONCode(t *testing.T) {
 	cfg := testGatewayConfig(t)
 	cfg.Subs[1].AccessCodeHash = mustHash(t, "123456")
-	handler := NewServer(mount.NewService(cfg, fakeOpenListClient{}, nil), nil)
+	handler := NewServer(mount.NewService(cfg, fakeBackendClient{}, nil), nil)
 	req := httptest.NewRequest(http.MethodPost, "http://gateway.example.com/api/sub/shows/auth", strings.NewReader(`{"code":"123456"}`))
 	rec := httptest.NewRecorder()
 
@@ -556,7 +556,7 @@ func TestAuthEndpointAcceptsJSONCode(t *testing.T) {
 func TestAuthEndpointCoolsDownAfterFailures(t *testing.T) {
 	cfg := testGatewayConfig(t)
 	cfg.Subs[1].AccessCodeHash = mustHash(t, "123456")
-	handler := NewServer(mount.NewService(cfg, fakeOpenListClient{}, nil), nil)
+	handler := NewServer(mount.NewService(cfg, fakeBackendClient{}, nil), nil)
 
 	for i := 0; i < authFailureLimit; i++ {
 		req := httptest.NewRequest(http.MethodPost, "http://gateway.example.com/api/sub/shows/auth", strings.NewReader(`{"code":"0000"}`))
@@ -578,7 +578,7 @@ func TestAuthEndpointCoolsDownAfterFailures(t *testing.T) {
 func TestAuthEndpointExpiredPartialFailuresDoNotTripCooldown(t *testing.T) {
 	cfg := testGatewayConfig(t)
 	cfg.Subs[1].AccessCodeHash = mustHash(t, "123456")
-	handler := NewServer(mount.NewService(cfg, fakeOpenListClient{}, nil), nil)
+	handler := NewServer(mount.NewService(cfg, fakeBackendClient{}, nil), nil)
 	server := handler
 	key := "shows|192.0.2.1"
 	server.authLimiter.Set(key, auth.Failure{
@@ -603,7 +603,7 @@ func TestAuthEndpointExpiredPartialFailuresDoNotTripCooldown(t *testing.T) {
 func TestAuthEndpointCooldownIgnoresForwardedForByDefault(t *testing.T) {
 	cfg := testGatewayConfig(t)
 	cfg.Subs[1].AccessCodeHash = mustHash(t, "123456")
-	handler := NewServer(mount.NewService(cfg, fakeOpenListClient{}, nil), nil)
+	handler := NewServer(mount.NewService(cfg, fakeBackendClient{}, nil), nil)
 
 	for i := 0; i < authFailureLimit; i++ {
 		req := httptest.NewRequest(http.MethodPost, "http://gateway.example.com/api/sub/shows/auth", strings.NewReader(`{"code":"0000"}`))
@@ -628,7 +628,7 @@ func TestAuthEndpointCooldownCanTrustForwardedFor(t *testing.T) {
 	cfg := testGatewayConfig(t)
 	cfg.TrustForwardedHeaders = true
 	cfg.Subs[1].AccessCodeHash = mustHash(t, "123456")
-	handler := NewServer(mount.NewService(cfg, fakeOpenListClient{}, nil), nil)
+	handler := NewServer(mount.NewService(cfg, fakeBackendClient{}, nil), nil)
 
 	for i := 0; i < authFailureLimit; i++ {
 		req := httptest.NewRequest(http.MethodPost, "http://gateway.example.com/api/sub/shows/auth", strings.NewReader(`{"code":"0000"}`))
@@ -709,21 +709,21 @@ type recordingGatewayClient struct {
 	refreshPath      string
 }
 
-func (r *recordingGatewayClient) List(context.Context, config.Backend, string, string) ([]openlist.Item, error) {
+func (r *recordingGatewayClient) List(context.Context, config.Backend, string, string) ([]storage.Item, error) {
 	return nil, nil
 }
 
-func (r *recordingGatewayClient) RefreshList(_ context.Context, backend config.Backend, path string, _ string) ([]openlist.Item, error) {
+func (r *recordingGatewayClient) RefreshList(_ context.Context, backend config.Backend, path string, _ string) ([]storage.Item, error) {
 	r.refreshBackendID = backend.ID
 	r.refreshPath = path
 	return nil, nil
 }
 
-func (r *recordingGatewayClient) Get(context.Context, config.Backend, string, string) (openlist.Item, error) {
-	return openlist.Item{}, nil
+func (r *recordingGatewayClient) Get(context.Context, config.Backend, string, string) (storage.Item, error) {
+	return storage.Item{}, nil
 }
 
-func (r *recordingGatewayClient) Search(context.Context, config.Backend, string, string, string) ([]openlist.Item, error) {
+func (r *recordingGatewayClient) Search(context.Context, config.Backend, string, string, string) ([]storage.Item, error) {
 	return nil, nil
 }
 
@@ -732,22 +732,22 @@ type webdavGatewayClient struct {
 	openRange string
 }
 
-func (c *webdavGatewayClient) List(context.Context, config.Backend, string, string) ([]openlist.Item, error) {
-	return []openlist.Item{
+func (c *webdavGatewayClient) List(context.Context, config.Backend, string, string) ([]storage.Item, error) {
+	return []storage.Item{
 		{Name: "movie.mkv", Type: 0, Size: 3},
 		{Name: "movie.srt", Type: 0, Size: 2},
 	}, nil
 }
 
-func (c *webdavGatewayClient) RefreshList(context.Context, config.Backend, string, string) ([]openlist.Item, error) {
+func (c *webdavGatewayClient) RefreshList(context.Context, config.Backend, string, string) ([]storage.Item, error) {
 	return c.List(context.Background(), config.Backend{}, "", "")
 }
 
-func (c *webdavGatewayClient) Get(_ context.Context, _ config.Backend, p string, _ string) (openlist.Item, error) {
-	return openlist.Item{Name: path.Base(p), Type: 0}, nil
+func (c *webdavGatewayClient) Get(_ context.Context, _ config.Backend, p string, _ string) (storage.Item, error) {
+	return storage.Item{Name: path.Base(p), Type: 0}, nil
 }
 
-func (c *webdavGatewayClient) Search(context.Context, config.Backend, string, string, string) ([]openlist.Item, error) {
+func (c *webdavGatewayClient) Search(context.Context, config.Backend, string, string, string) ([]storage.Item, error) {
 	return nil, nil
 }
 
@@ -764,7 +764,7 @@ func (c *webdavGatewayClient) Open(_ context.Context, _ config.Backend, p string
 func TestWebDAVPlayUsesSignedProxyWithoutLeakingSecrets(t *testing.T) {
 	search := false
 	cfg := &config.Config{
-		Backends: []config.Backend{{ID: "dav", Type: "webdav", Server: "https://dav.example.com/remote.php/dav/files/demo", AuthType: "password", User: "demo", Password: "secret-password"}},
+		Backends: []config.Backend{{ID: "dav", Type: config.BackendTypeWebDAV, Server: "https://dav.example.com/remote.php/dav/files/demo", AuthType: "password", User: "demo", Password: "secret-password"}},
 		Subs:     []config.Subscription{{ID: "movies", Path: "/sub", SiteKey: "movies_key", Mounts: []config.Mount{{ID: "movies", Backend: "dav", Path: "/Movies", Search: &search}}}},
 	}
 	if err := cfg.Validate(); err != nil {

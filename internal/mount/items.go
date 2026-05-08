@@ -5,13 +5,13 @@ import (
 	"strconv"
 
 	"openlist-tvbox/internal/i18n"
-	"openlist-tvbox/internal/openlist"
+	"openlist-tvbox/internal/storage"
 	"openlist-tvbox/internal/utils"
 )
 
-func splitItems(items []openlist.Item) ([]openlist.Item, []openlist.Item) {
-	folders := []openlist.Item{}
-	files := []openlist.Item{}
+func splitItems(items []storage.Item) ([]storage.Item, []storage.Item) {
+	folders := []storage.Item{}
+	files := []storage.Item{}
 	for _, item := range items {
 		if utils.Ignore(item.Name, item.Type) {
 			continue
@@ -25,9 +25,9 @@ func splitItems(items []openlist.Item) ([]openlist.Item, []openlist.Item) {
 	return folders, files
 }
 
-func orderedMediaItems(items []openlist.Item, selectedName string) []openlist.Item {
-	selected := []openlist.Item{}
-	others := []openlist.Item{}
+func orderedMediaItems(items []storage.Item, selectedName string) []storage.Item {
+	selected := []storage.Item{}
+	others := []storage.Item{}
 	for _, item := range items {
 		if !utils.IsMedia(item.Name, item.Type) {
 			continue
@@ -44,16 +44,16 @@ func orderedMediaItems(items []openlist.Item, selectedName string) []openlist.It
 	return append(selected, others...)
 }
 
-func selectedMediaItem(items []openlist.Item, selectedName string) (openlist.Item, bool) {
+func selectedMediaItem(items []storage.Item, selectedName string) (storage.Item, bool) {
 	for _, item := range items {
 		if item.Name == selectedName && utils.IsMedia(item.Name, item.Type) {
 			return item, true
 		}
 	}
-	return openlist.Item{}, false
+	return storage.Item{}, false
 }
 
-func hasMedia(items []openlist.Item) bool {
+func hasMedia(items []storage.Item) bool {
 	for _, item := range items {
 		if utils.IsMedia(item.Name, item.Type) {
 			return true

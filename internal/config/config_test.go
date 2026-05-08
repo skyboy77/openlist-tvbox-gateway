@@ -462,7 +462,7 @@ func TestValidateRejectsUnsupportedBackendVersion(t *testing.T) {
 func TestValidateWebDAVBackendAuthModes(t *testing.T) {
 	search := false
 	cfg := Config{
-		Backends: []Backend{{ID: "dav", Type: "webdav", Server: "https://dav.example.com/files", AuthType: "password", User: "demo", Password: "secret"}},
+		Backends: []Backend{{ID: "dav", Type: BackendTypeWebDAV, Server: "https://dav.example.com/files", AuthType: "password", User: "demo", Password: "secret"}},
 		Subs:     []Subscription{{Mounts: []Mount{{ID: "m1", Backend: "dav", Path: "/", Search: &search}}}},
 	}
 	if err := cfg.Validate(); err != nil {
@@ -475,7 +475,7 @@ func TestValidateWebDAVBackendAuthModes(t *testing.T) {
 
 func TestValidateRejectsWebDAVAPIKey(t *testing.T) {
 	cfg := Config{
-		Backends: []Backend{{ID: "dav", Type: "webdav", Server: "https://dav.example.com/files", AuthType: "api_key", APIKey: "secret"}},
+		Backends: []Backend{{ID: "dav", Type: BackendTypeWebDAV, Server: "https://dav.example.com/files", AuthType: "api_key", APIKey: "secret"}},
 		Subs:     []Subscription{{Mounts: []Mount{{ID: "m1", Backend: "dav", Path: "/"}}}},
 	}
 	if err := cfg.Validate(); err == nil {
@@ -485,7 +485,7 @@ func TestValidateRejectsWebDAVAPIKey(t *testing.T) {
 
 func TestValidateRejectsWebDAVMountRefresh(t *testing.T) {
 	cfg := Config{
-		Backends: []Backend{{ID: "dav", Type: "webdav", Server: "https://dav.example.com/files", AuthType: "anonymous"}},
+		Backends: []Backend{{ID: "dav", Type: BackendTypeWebDAV, Server: "https://dav.example.com/files", AuthType: "anonymous"}},
 		Subs:     []Subscription{{Mounts: []Mount{{ID: "m1", Backend: "dav", Path: "/", Refresh: true}}}},
 	}
 	if err := cfg.Validate(); err == nil {
@@ -497,7 +497,7 @@ func TestValidateRejectsWebDAVMountRefresh(t *testing.T) {
 
 func TestValidateRejectsWebDAVMountSearch(t *testing.T) {
 	cfg := Config{
-		Backends: []Backend{{ID: "dav", Type: "webdav", Server: "https://dav.example.com/files", AuthType: "anonymous"}},
+		Backends: []Backend{{ID: "dav", Type: BackendTypeWebDAV, Server: "https://dav.example.com/files", AuthType: "anonymous"}},
 		Subs:     []Subscription{{Mounts: []Mount{{ID: "m1", Backend: "dav", Path: "/"}}}},
 	}
 	if err := cfg.Validate(); err == nil {

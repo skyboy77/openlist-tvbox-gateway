@@ -16,7 +16,7 @@ import (
 	"github.com/studio-b12/gowebdav"
 
 	"openlist-tvbox/internal/config"
-	"openlist-tvbox/internal/openlist"
+	"openlist-tvbox/internal/storage"
 )
 
 const userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36"
@@ -39,7 +39,7 @@ func NewClient(httpClient *http.Client, logger *slog.Logger) *Client {
 	return &Client{http: httpClient, logger: logger}
 }
 
-func (c *Client) List(ctx context.Context, backend config.Backend, p, _ string) ([]openlist.Item, error) {
+func (c *Client) List(ctx context.Context, backend config.Backend, p, _ string) ([]storage.Item, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -53,34 +53,34 @@ func (c *Client) List(ctx context.Context, backend config.Backend, p, _ string) 
 		return nil, sanitizeError(ctx, err)
 	}
 	parent := cleanDAVPath(p)
-	items := make([]openlist.Item, 0, len(files))
+	items := make([]storage.Item, 0, len(files))
 	for _, file := range files {
 		items = append(items, fileInfoToItem(file, parent))
 	}
 	return items, nil
 }
 
-func (c *Client) RefreshList(ctx context.Context, backend config.Backend, p, password string) ([]openlist.Item, error) {
+func (c *Client) RefreshList(ctx context.Context, backend config.Backend, p, password string) ([]storage.Item, error) {
 	return c.List(ctx, backend, p, password)
 }
 
-func (c *Client) Get(ctx context.Context, backend config.Backend, p, _ string) (openlist.Item, error) {
+func (c *Client) Get(ctx context.Context, backend config.Backend, p, _ string) (storage.Item, error) {
 	if err := ctx.Err(); err != nil {
-		return openlist.Item{}, err
+		return storage.Item{}, err
 	}
 	client, err := c.newDAVClient(ctx, backend, nil)
 	if err != nil {
-		return openlist.Item{}, err
+		return storage.Item{}, err
 	}
 	file, err := client.Stat(cleanDAVPath(p))
 	if err != nil {
 		c.logWarn("webdav propfind request failed", backend)
-		return openlist.Item{}, sanitizeError(ctx, err)
+		return storage.Item{}, sanitizeError(ctx, err)
 	}
 	return fileInfoToItem(file, cleanDAVPath(path.Dir(cleanDAVPath(p)))), nil
 }
 
-func (c *Client) Search(context.Context, config.Backend, string, string, string) ([]openlist.Item, error) {
+func (c *Client) Search(context.Context, config.Backend, string, string, string) ([]storage.Item, error) {
 	return nil, errors.New("webdav search is not supported")
 }
 
@@ -264,7 +264,7 @@ func (c *responseCapture) response() *http.Response {
 	return c.resp
 }
 
-func fileInfoToItem(file os.FileInfo, parent string) openlist.Item {
+func fileInfoToItem(file os.FileInfo, parent string) storage.Item {
 	itemType := 0
 	if file.IsDir() {
 		itemType = 1
@@ -273,7 +273,7 @@ func fileInfoToItem(file os.FileInfo, parent string) openlist.Item {
 	if !file.ModTime().IsZero() {
 		modified = file.ModTime().Format(time.RFC3339)
 	}
-	return openlist.Item{
+	return storage.Item{
 		Name:     file.Name(),
 		Parent:   parent,
 		Path:     parent,

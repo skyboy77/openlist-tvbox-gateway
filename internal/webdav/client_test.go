@@ -33,7 +33,7 @@ func TestClientListParsesPropfind(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.Client(), nil)
-	items, err := client.List(context.Background(), config.Backend{ID: "dav", Type: "webdav", Server: server.URL + "/dav"}, "/Movies", "")
+	items, err := client.List(context.Background(), config.Backend{ID: "dav", Type: config.BackendTypeWebDAV, Server: server.URL + "/dav"}, "/Movies", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +53,7 @@ func TestClientListCancelsInFlightPropfind(t *testing.T) {
 
 	client := NewClient(server.Client(), nil)
 	assertWebDAVCancel(t, requested, func(ctx context.Context) error {
-		_, err := client.List(ctx, config.Backend{ID: "dav", Type: "webdav", Server: server.URL}, "/Movies", "")
+		_, err := client.List(ctx, config.Backend{ID: "dav", Type: config.BackendTypeWebDAV, Server: server.URL}, "/Movies", "")
 		return err
 	})
 }
@@ -63,7 +63,7 @@ func TestClientGetCancelsInFlightPropfind(t *testing.T) {
 
 	client := NewClient(server.Client(), nil)
 	assertWebDAVCancel(t, requested, func(ctx context.Context) error {
-		_, err := client.Get(ctx, config.Backend{ID: "dav", Type: "webdav", Server: server.URL}, "/Movies/a.mkv", "")
+		_, err := client.Get(ctx, config.Backend{ID: "dav", Type: config.BackendTypeWebDAV, Server: server.URL}, "/Movies/a.mkv", "")
 		return err
 	})
 }
@@ -73,7 +73,7 @@ func TestClientOpenCancelsInFlightReadStream(t *testing.T) {
 
 	client := NewClient(server.Client(), nil)
 	assertWebDAVCancel(t, requested, func(ctx context.Context) error {
-		stream, err := client.Open(ctx, config.Backend{ID: "dav", Type: "webdav", Server: server.URL}, "/Movies/a.mkv", http.MethodGet, "")
+		stream, err := client.Open(ctx, config.Backend{ID: "dav", Type: config.BackendTypeWebDAV, Server: server.URL}, "/Movies/a.mkv", http.MethodGet, "")
 		if stream != nil {
 			_ = stream.Body.Close()
 		}
@@ -178,7 +178,7 @@ func TestClientOpenForwardsRangeAndBasicAuth(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.Client(), nil)
-	stream, err := client.Open(context.Background(), config.Backend{ID: "dav", Type: "webdav", Server: server.URL, AuthType: "password", User: "demo", Password: "secret"}, "/movie.mkv", http.MethodGet, "bytes=1-3")
+	stream, err := client.Open(context.Background(), config.Backend{ID: "dav", Type: config.BackendTypeWebDAV, Server: server.URL, AuthType: "password", User: "demo", Password: "secret"}, "/movie.mkv", http.MethodGet, "bytes=1-3")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -220,7 +220,7 @@ func TestClientOpenForwardsOpenEndedRange(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.Client(), nil)
-	stream, err := client.Open(context.Background(), config.Backend{ID: "dav", Type: "webdav", Server: server.URL, AuthType: "password", User: "demo", Password: "secret"}, "/movie.mkv", http.MethodGet, "bytes=10-")
+	stream, err := client.Open(context.Background(), config.Backend{ID: "dav", Type: config.BackendTypeWebDAV, Server: server.URL, AuthType: "password", User: "demo", Password: "secret"}, "/movie.mkv", http.MethodGet, "bytes=10-")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -261,7 +261,7 @@ func TestClientOpenHeadUsesDAVAuthFlow(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.Client(), nil)
-	stream, err := client.Open(context.Background(), config.Backend{ID: "dav", Type: "webdav", Server: server.URL, AuthType: "password", User: "demo", Password: "secret"}, "/movie.mkv", http.MethodHead, "bytes=10-")
+	stream, err := client.Open(context.Background(), config.Backend{ID: "dav", Type: config.BackendTypeWebDAV, Server: server.URL, AuthType: "password", User: "demo", Password: "secret"}, "/movie.mkv", http.MethodHead, "bytes=10-")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -303,7 +303,7 @@ func TestClientOpenForwardsSuffixRange(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.Client(), nil)
-	stream, err := client.Open(context.Background(), config.Backend{ID: "dav", Type: "webdav", Server: server.URL, AuthType: "password", User: "demo", Password: "secret"}, "/movie.mkv", http.MethodGet, "bytes=-65536")
+	stream, err := client.Open(context.Background(), config.Backend{ID: "dav", Type: config.BackendTypeWebDAV, Server: server.URL, AuthType: "password", User: "demo", Password: "secret"}, "/movie.mkv", http.MethodGet, "bytes=-65536")
 	if err != nil {
 		t.Fatal(err)
 	}

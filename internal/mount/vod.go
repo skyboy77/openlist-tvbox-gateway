@@ -7,11 +7,11 @@ import (
 	"openlist-tvbox/internal/catvod"
 	"openlist-tvbox/internal/config"
 	"openlist-tvbox/internal/i18n"
-	"openlist-tvbox/internal/openlist"
+	"openlist-tvbox/internal/storage"
 	"openlist-tvbox/internal/utils"
 )
 
-func (s *Service) vodForItem(m config.Mount, parentRel string, item openlist.Item, remark string) catvod.Vod {
+func (s *Service) vodForItem(m config.Mount, parentRel string, item storage.Item, remark string) catvod.Vod {
 	itemRel := path.Join(parentRel, item.Name)
 	pic := iconForItem(item.Name, item.Type)
 	if remark == "" {
@@ -35,7 +35,7 @@ func (s *Service) vodForItem(m config.Mount, parentRel string, item openlist.Ite
 	return vod
 }
 
-func detailPic(m config.Mount, selectedName string, items []openlist.Item) string {
+func detailPic(m config.Mount, selectedName string, items []storage.Item) string {
 	if selectedName == "" {
 		return folderPic
 	}

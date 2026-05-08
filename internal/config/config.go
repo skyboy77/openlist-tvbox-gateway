@@ -57,6 +57,12 @@ type Backend struct {
 	Version        string `json:"version,omitempty" yaml:"version"`
 }
 
+const (
+	BackendTypeOpenListV4 = "openlist_v4"
+	BackendTypeAListV3    = "alist_v3"
+	BackendTypeWebDAV     = "webdav"
+)
+
 type Mount struct {
 	ID          string            `json:"id" yaml:"id"`
 	Name        string            `json:"name" yaml:"name"`
@@ -141,7 +147,7 @@ func EnsureEditableJSON(path string) error {
 		Backends: []Backend{
 			{
 				ID:       "local",
-				Type:     "openlist_v4",
+				Type:     BackendTypeOpenListV4,
 				Server:   "http://127.0.0.1:5244",
 				AuthType: "anonymous",
 			},
@@ -260,10 +266,10 @@ func (c *Config) validate(opts validateOptions) error {
 		}
 		b.Type = strings.TrimSpace(b.Type)
 		if b.Type == "" {
-			b.Type = "openlist_v4"
+			b.Type = BackendTypeOpenListV4
 		}
 		switch b.Type {
-		case "openlist_v4", "alist_v3", "webdav":
+		case BackendTypeOpenListV4, BackendTypeAListV3, BackendTypeWebDAV:
 		default:
 			return CodedErrorf("backend.type.invalid", map[string]any{"backend_id": b.ID, "type": b.Type}, "backend %q type must be one of openlist_v4, alist_v3 or webdav", b.ID)
 		}
@@ -271,7 +277,7 @@ func (c *Config) validate(opts validateOptions) error {
 		if err != nil || u.Scheme == "" || u.Host == "" {
 			return CodedErrorf("backend.server.invalid", map[string]any{"backend_id": b.ID}, "backend %q server must be an absolute URL", b.ID)
 		}
-		if b.Type == "webdav" {
+		if b.IsWebDAV() {
 			if u.Scheme != "http" && u.Scheme != "https" {
 				return CodedErrorf("backend.server.invalid", map[string]any{"backend_id": b.ID}, "backend %q WebDAV server must be an absolute http(s) URL", b.ID)
 			}
@@ -406,7 +412,7 @@ func normalizeBackendAuth(b *Backend, resolveEnvSecrets bool) error {
 			return CodedErrorf("backend.auth.credentials_for_anonymous", map[string]any{"backend_id": b.ID}, "backend %q anonymous auth must not set credential fields", b.ID)
 		}
 	case "api_key":
-		if b.Type == "webdav" {
+		if b.IsWebDAV() {
 			return CodedErrorf("backend.auth_type.invalid", map[string]any{"backend_id": b.ID, "auth_type": b.AuthType}, "backend %q WebDAV auth_type must be anonymous or password", b.ID)
 		}
 		if b.User != "" || b.Password != "" || b.PasswordEnv != "" {
@@ -504,10 +510,10 @@ func validateMounts(subID string, mounts []Mount, backendByID map[string]Backend
 		if !ok {
 			return CodedErrorf("mount.backend.unknown", map[string]any{"sub_id": subID, "mount_id": m.ID, "backend_id": m.Backend}, "sub %q mount %q references unknown backend %q", subID, m.ID, m.Backend)
 		}
-		if m.Refresh && backend.Type == "webdav" {
+		if m.Refresh && !backend.SupportsRefresh() {
 			return CodedErrorf("mount.refresh.unsupported", map[string]any{"sub_id": subID, "mount_id": m.ID, "backend_id": m.Backend, "backend_type": backend.Type}, "sub %q mount %q cannot enable refresh for WebDAV backend %q", subID, m.ID, m.Backend)
 		}
-		if backend.Type == "webdav" && m.SearchEnabled() {
+		if !backend.SupportsSearch() && m.SearchEnabled() {
 			return CodedErrorf("mount.search.unsupported", map[string]any{"sub_id": subID, "mount_id": m.ID, "backend_id": m.Backend, "backend_type": backend.Type}, "sub %q mount %q cannot enable search for WebDAV backend %q", subID, m.ID, m.Backend)
 		}
 		if m.Name == "" {
@@ -637,6 +643,22 @@ func CleanHTTPPath(path string) (string, error) {
 
 func (m Mount) SearchEnabled() bool {
 	return m.Search == nil || *m.Search
+}
+
+func (b Backend) IsWebDAV() bool {
+	return b.Type == BackendTypeWebDAV
+}
+
+func (b Backend) SupportsSearch() bool {
+	return !b.IsWebDAV()
+}
+
+func (b Backend) SupportsRefresh() bool {
+	return !b.IsWebDAV()
+}
+
+func (b Backend) RequiresPlaybackProxy() bool {
+	return b.IsWebDAV()
 }
 
 func NormalizeMountParams(params map[string]string) (map[string]string, error) {

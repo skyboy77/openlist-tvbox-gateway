@@ -9,6 +9,7 @@ import (
 
 	"openlist-tvbox/internal/config"
 	"openlist-tvbox/internal/openlist"
+	"openlist-tvbox/internal/storage"
 	"openlist-tvbox/internal/webdav"
 )
 
@@ -27,36 +28,36 @@ func NewClient(httpClient *http.Client, logger *slog.Logger) *Client {
 	}
 }
 
-func (c *Client) List(ctx context.Context, backend config.Backend, path, password string) ([]openlist.Item, error) {
-	if backend.Type == "webdav" {
+func (c *Client) List(ctx context.Context, backend config.Backend, path, password string) ([]storage.Item, error) {
+	if backend.IsWebDAV() {
 		return c.webdav.List(ctx, backend, path, password)
 	}
 	return c.openlist.List(ctx, backend, path, password)
 }
 
-func (c *Client) RefreshList(ctx context.Context, backend config.Backend, path, password string) ([]openlist.Item, error) {
-	if backend.Type == "webdav" {
+func (c *Client) RefreshList(ctx context.Context, backend config.Backend, path, password string) ([]storage.Item, error) {
+	if !backend.SupportsRefresh() {
 		return nil, errors.New("webdav refresh is not supported")
 	}
 	return c.openlist.RefreshList(ctx, backend, path, password)
 }
 
-func (c *Client) Get(ctx context.Context, backend config.Backend, path, password string) (openlist.Item, error) {
-	if backend.Type == "webdav" {
+func (c *Client) Get(ctx context.Context, backend config.Backend, path, password string) (storage.Item, error) {
+	if backend.IsWebDAV() {
 		return c.webdav.Get(ctx, backend, path, password)
 	}
 	return c.openlist.Get(ctx, backend, path, password)
 }
 
-func (c *Client) Search(ctx context.Context, backend config.Backend, path, keyword, password string) ([]openlist.Item, error) {
-	if backend.Type == "webdav" {
+func (c *Client) Search(ctx context.Context, backend config.Backend, path, keyword, password string) ([]storage.Item, error) {
+	if !backend.SupportsSearch() {
 		return nil, errors.New("webdav search is not supported")
 	}
 	return c.openlist.Search(ctx, backend, path, keyword, password)
 }
 
 func (c *Client) Open(ctx context.Context, backend config.Backend, path string, opts OpenOptions) (*Stream, error) {
-	if backend.Type != "webdav" {
+	if !backend.RequiresPlaybackProxy() {
 		return nil, errors.New("file proxy is not supported for this backend")
 	}
 	stream, err := c.webdav.Open(ctx, backend, path, opts.Method, opts.Range)

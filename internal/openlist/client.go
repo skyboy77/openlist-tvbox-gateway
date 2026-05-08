@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"openlist-tvbox/internal/config"
+	"openlist-tvbox/internal/storage"
 )
 
 const userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36"
@@ -38,18 +39,18 @@ func NewClient(httpClient *http.Client, logger *slog.Logger) *Client {
 	return &Client{http: httpClient, logger: logger, authStates: map[string]*authState{}}
 }
 
-func (c *Client) List(ctx context.Context, backend config.Backend, path, password string) ([]Item, error) {
+func (c *Client) List(ctx context.Context, backend config.Backend, path, password string) ([]storage.Item, error) {
 	return c.list(ctx, backend, path, password, false)
 }
 
-func (c *Client) RefreshList(ctx context.Context, backend config.Backend, path, password string) ([]Item, error) {
+func (c *Client) RefreshList(ctx context.Context, backend config.Backend, path, password string) ([]storage.Item, error) {
 	return c.list(ctx, backend, path, password, true)
 }
 
-func (c *Client) list(ctx context.Context, backend config.Backend, path, password string, refresh bool) ([]Item, error) {
+func (c *Client) list(ctx context.Context, backend config.Backend, path, password string, refresh bool) ([]storage.Item, error) {
 	var out struct {
 		Data struct {
-			Content []Item `json:"content"`
+			Content []storage.Item `json:"content"`
 		} `json:"data"`
 	}
 	body := map[string]any{"path": path, "password": password}
@@ -60,25 +61,25 @@ func (c *Client) list(ctx context.Context, backend config.Backend, path, passwor
 		return nil, err
 	}
 	if out.Data.Content == nil {
-		return []Item{}, nil
+		return []storage.Item{}, nil
 	}
 	return out.Data.Content, nil
 }
 
-func (c *Client) Get(ctx context.Context, backend config.Backend, path, password string) (Item, error) {
+func (c *Client) Get(ctx context.Context, backend config.Backend, path, password string) (storage.Item, error) {
 	var out struct {
-		Data Item `json:"data"`
+		Data storage.Item `json:"data"`
 	}
 	if err := c.post(ctx, backend, "/api/fs/get", map[string]any{"path": path, "password": password}, &out); err != nil {
-		return Item{}, err
+		return storage.Item{}, err
 	}
 	return out.Data, nil
 }
 
-func (c *Client) Search(ctx context.Context, backend config.Backend, path, keyword, password string) ([]Item, error) {
+func (c *Client) Search(ctx context.Context, backend config.Backend, path, keyword, password string) ([]storage.Item, error) {
 	var out struct {
 		Data struct {
-			Content []Item `json:"content"`
+			Content []storage.Item `json:"content"`
 		} `json:"data"`
 	}
 	body := map[string]any{"parent": path, "keywords": keyword, "scope": 0, "page": 1, "per_page": 100, "password": password}
@@ -86,7 +87,7 @@ func (c *Client) Search(ctx context.Context, backend config.Backend, path, keywo
 		return nil, err
 	}
 	if out.Data.Content == nil {
-		return []Item{}, nil
+		return []storage.Item{}, nil
 	}
 	return out.Data.Content, nil
 }

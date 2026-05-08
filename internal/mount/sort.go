@@ -7,10 +7,10 @@ import (
 	"strconv"
 	"strings"
 
-	"openlist-tvbox/internal/openlist"
+	"openlist-tvbox/internal/storage"
 )
 
-func sortItems(sortType, order string, items []openlist.Item) {
+func sortItems(sortType, order string, items []storage.Item) {
 	if sortType == "" {
 		sortType = "name"
 	}

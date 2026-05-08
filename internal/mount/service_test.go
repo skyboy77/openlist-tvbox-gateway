@@ -8,40 +8,40 @@ import (
 
 	"openlist-tvbox/internal/catvod"
 	"openlist-tvbox/internal/config"
-	"openlist-tvbox/internal/openlist"
+	"openlist-tvbox/internal/storage"
 )
 
 type fakeClient struct {
-	items  []openlist.Item
+	items  []storage.Item
 	getURL string
 	urls   map[string]string
 }
 
-func (f fakeClient) List(context.Context, config.Backend, string, string) ([]openlist.Item, error) {
+func (f fakeClient) List(context.Context, config.Backend, string, string) ([]storage.Item, error) {
 	return f.items, nil
 }
 
-func (f fakeClient) RefreshList(context.Context, config.Backend, string, string) ([]openlist.Item, error) {
+func (f fakeClient) RefreshList(context.Context, config.Backend, string, string) ([]storage.Item, error) {
 	return f.items, nil
 }
 
-func (f fakeClient) Get(_ context.Context, _ config.Backend, p string, _ string) (openlist.Item, error) {
+func (f fakeClient) Get(_ context.Context, _ config.Backend, p string, _ string) (storage.Item, error) {
 	if f.urls != nil {
 		if raw, ok := f.urls[p]; ok {
-			return openlist.Item{Name: pathBase(p), Type: 2, URL: raw}, nil
+			return storage.Item{Name: pathBase(p), Type: 2, URL: raw}, nil
 		}
 	}
 	if f.getURL == "" {
 		f.getURL = "https://cdn.example.com/a.mkv"
 	}
-	return openlist.Item{Name: "a.mkv", Type: 2, URL: f.getURL}, nil
+	return storage.Item{Name: "a.mkv", Type: 2, URL: f.getURL}, nil
 }
 
-func (f fakeClient) Search(context.Context, config.Backend, string, string, string) ([]openlist.Item, error) {
+func (f fakeClient) Search(context.Context, config.Backend, string, string, string) ([]storage.Item, error) {
 	return f.items, nil
 }
 
-func testService(items []openlist.Item) *Service {
+func testService(items []storage.Item) *Service {
 	cfg := &config.Config{
 		Backends: []config.Backend{{ID: "b1", Server: "https://example.com"}},
 		Subs:     []config.Subscription{{Mounts: []config.Mount{{ID: "m1", Name: "M1", Backend: "b1", Path: "/root"}}}},
@@ -53,7 +53,7 @@ func testService(items []openlist.Item) *Service {
 }
 
 func TestCategoryPrioritizesPlayDirectoryBeforeSortedEntries(t *testing.T) {
-	svc := testService([]openlist.Item{
+	svc := testService([]storage.Item{
 		{Name: "b.mkv", Type: 2, Size: 2},
 		{Name: "z", Type: 1},
 		{Name: "a.mkv", Type: 2, Size: 1},
@@ -76,7 +76,7 @@ func TestCategoryPrioritizesPlayDirectoryBeforeSortedEntries(t *testing.T) {
 }
 
 func TestCategoryNameSortsNaturally(t *testing.T) {
-	svc := testService([]openlist.Item{
+	svc := testService([]storage.Item{
 		{Name: "第11集.mkv", Type: 2},
 		{Name: "第8集.mkv", Type: 2},
 		{Name: "第10集.mkv", Type: 2},
@@ -96,7 +96,7 @@ func TestCategoryNameSortsNaturally(t *testing.T) {
 }
 
 func TestCategoryDefaultSortsNameAscending(t *testing.T) {
-	svc := testService([]openlist.Item{
+	svc := testService([]storage.Item{
 		{Name: "5.mkv", Type: 2},
 		{Name: "4.mkv", Type: 2},
 		{Name: "3.mkv", Type: 2},
@@ -117,7 +117,7 @@ func TestCategoryDefaultSortsNameAscending(t *testing.T) {
 }
 
 func TestCategoryNameSortsSeasonEpisode(t *testing.T) {
-	svc := testService([]openlist.Item{
+	svc := testService([]storage.Item{
 		{Name: "Show S01E10.mkv", Type: 2},
 		{Name: "Show S02E01.mkv", Type: 2},
 		{Name: "Show S01E09.mkv", Type: 2},
@@ -137,7 +137,7 @@ func TestCategoryNameSortsSeasonEpisode(t *testing.T) {
 }
 
 func TestCategoryNameSortsSeasonEpisodeWithinSeries(t *testing.T) {
-	svc := testService([]openlist.Item{
+	svc := testService([]storage.Item{
 		{Name: "ShowB S01E01.mkv", Type: 2},
 		{Name: "ShowA S01E02.mkv", Type: 2},
 		{Name: "ShowB S01E02.mkv", Type: 2},
@@ -157,7 +157,7 @@ func TestCategoryNameSortsSeasonEpisodeWithinSeries(t *testing.T) {
 }
 
 func TestCategoryAddsPlayDirectoryVodForCurrentDirectoryMedia(t *testing.T) {
-	svc := testService([]openlist.Item{
+	svc := testService([]storage.Item{
 		{Name: "dir", Type: 1},
 		{Name: "movie.mkv", Type: 2},
 		{Name: "clip.ts", Type: 0},
@@ -189,7 +189,7 @@ func TestHomeAndCategoryUseSubscriptionLanguage(t *testing.T) {
 	if err := cfg.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	svc := NewService(cfg, fakeClient{items: []openlist.Item{{Name: "movie.mkv", Type: 2}}}, nil)
+	svc := NewService(cfg, fakeClient{items: []storage.Item{{Name: "movie.mkv", Type: 2}}}, nil)
 	home := svc.HomeForSub("default")
 	if home.Filters["m1"][0].Name != "Sort by" || home.Filters["m1"][0].Value[1].N != "Name" {
 		t.Fatalf("filters = %#v", home.Filters["m1"])
@@ -219,7 +219,7 @@ func TestCategoryShowsRefreshVodOnlyWhenMountEnablesRefresh(t *testing.T) {
 	if err := cfg.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	svc := NewService(cfg, fakeClient{items: []openlist.Item{{Name: "dir", Type: 1}}}, nil)
+	svc := NewService(cfg, fakeClient{items: []storage.Item{{Name: "dir", Type: 1}}}, nil)
 	got, err := svc.CategoryForSub(context.Background(), "default", "m1/season", "", "")
 	if err != nil {
 		t.Fatal(err)
@@ -232,7 +232,7 @@ func TestCategoryShowsRefreshVodOnlyWhenMountEnablesRefresh(t *testing.T) {
 	if err := cfg.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	svc = NewService(cfg, fakeClient{items: []openlist.Item{{Name: "dir", Type: 1}}}, nil)
+	svc = NewService(cfg, fakeClient{items: []storage.Item{{Name: "dir", Type: 1}}}, nil)
 	got, err = svc.CategoryForSub(context.Background(), "default", "m1/season", "", "")
 	if err != nil {
 		t.Fatal(err)
@@ -260,7 +260,7 @@ func TestRefreshDirectoryRemarkShortensLongPath(t *testing.T) {
 	if err := cfg.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	svc := NewService(cfg, fakeClient{items: []openlist.Item{{Name: "movie.mkv", Type: 2}}}, nil)
+	svc := NewService(cfg, fakeClient{items: []storage.Item{{Name: "movie.mkv", Type: 2}}}, nil)
 	got, err := svc.CategoryForSub(context.Background(), "default", "m1/电影/欧美/科幻/沙丘/导演剪辑版/Season 01", "", "")
 	if err != nil {
 		t.Fatal(err)
@@ -290,7 +290,7 @@ func TestRefreshDirectoryRemarkTruncatesLongDirectoryName(t *testing.T) {
 	if err := cfg.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	svc := NewService(cfg, fakeClient{items: []openlist.Item{{Name: "movie.mkv", Type: 2}}}, nil)
+	svc := NewService(cfg, fakeClient{items: []storage.Item{{Name: "movie.mkv", Type: 2}}}, nil)
 	got, err := svc.CategoryForSub(context.Background(), "default", "m1/电影/很长很长很长很长很长的目录名", "", "")
 	if err != nil {
 		t.Fatal(err)
@@ -301,14 +301,14 @@ func TestRefreshDirectoryRemarkTruncatesLongDirectoryName(t *testing.T) {
 }
 
 func TestRefreshRequiresMountRefreshEnabled(t *testing.T) {
-	svc := testService([]openlist.Item{{Name: "dir", Type: 1}})
+	svc := testService([]storage.Item{{Name: "dir", Type: 1}})
 	if _, err := svc.RefreshForSub(context.Background(), "default", "m1"); err == nil {
 		t.Fatal("expected refresh disabled error")
 	}
 }
 
 func TestCategorySkipsPlayDirectoryVodWithoutCurrentDirectoryMedia(t *testing.T) {
-	svc := testService([]openlist.Item{
+	svc := testService([]storage.Item{
 		{Name: "dir", Type: 1},
 		{Name: "readme.txt", Type: 5},
 	})
@@ -322,7 +322,7 @@ func TestCategorySkipsPlayDirectoryVodWithoutCurrentDirectoryMedia(t *testing.T)
 }
 
 func TestCategoryMarksFilesWithFileScopedID(t *testing.T) {
-	svc := testService([]openlist.Item{
+	svc := testService([]storage.Item{
 		{Name: "dir", Type: 1},
 		{Name: "movie.mkv", Type: 2},
 	})
@@ -380,7 +380,7 @@ func TestCategoryFallsBackToDetailForLegacyFileID(t *testing.T) {
 }
 
 func TestCategoryDoesNotShowFolderSizeRemark(t *testing.T) {
-	svc := testService([]openlist.Item{
+	svc := testService([]storage.Item{
 		{Name: "dir", Type: 1, Size: 0},
 		{Name: "sized-dir", Type: 1, Size: 2048},
 		{Name: "movie.mkv", Type: 2, Size: 1024},
@@ -404,7 +404,7 @@ func TestCategoryDoesNotShowFolderSizeRemark(t *testing.T) {
 }
 
 func TestCategoryUsesBuiltInIconsWhenNoThumbnail(t *testing.T) {
-	svc := testService([]openlist.Item{
+	svc := testService([]storage.Item{
 		{Name: "dir", Type: 1},
 		{Name: "song.flac", Type: 2},
 		{Name: "movie.mkv", Type: 2},
@@ -433,7 +433,7 @@ func TestCategoryUsesBuiltInIconsWhenNoThumbnail(t *testing.T) {
 }
 
 func TestCategorySortsDateByParsedTime(t *testing.T) {
-	svc := testService([]openlist.Item{
+	svc := testService([]storage.Item{
 		{Name: "late.mkv", Type: 2, Modified: "2026-04-29T12:00:00+08:00"},
 		{Name: "early.mkv", Type: 2, Modified: "2026-04-29T03:00:00Z"},
 	})
@@ -450,7 +450,7 @@ func TestCategorySortsDateByParsedTime(t *testing.T) {
 }
 
 func TestDetailIncludesSameDirectorySubtitles(t *testing.T) {
-	svc := testService([]openlist.Item{
+	svc := testService([]storage.Item{
 		{Name: "a.mkv", Type: 2},
 		{Name: "a.srt", Type: 0},
 	})
@@ -472,7 +472,7 @@ func TestDetailIncludesSameDirectorySubtitles(t *testing.T) {
 }
 
 func TestDetailOnlyIncludesMatchingSubtitlesForSelectedMedia(t *testing.T) {
-	svc := testService([]openlist.Item{
+	svc := testService([]storage.Item{
 		{Name: "Show S01E01.mkv", Type: 2},
 		{Name: "Show S01E01.zh.ass", Type: 0},
 		{Name: "Show S01E02.mkv", Type: 2},
@@ -493,7 +493,7 @@ func TestDetailOnlyIncludesMatchingSubtitlesForSelectedMedia(t *testing.T) {
 }
 
 func TestDetailSortsSubtitlesForBoxFirstSubtitleFallback(t *testing.T) {
-	items := []openlist.Item{
+	items := []storage.Item{
 		{Name: "Movie.mkv", Type: 2},
 		{Name: "Movie.en.srt", Type: 0},
 		{Name: "Movie.zh.ass", Type: 0},
@@ -533,7 +533,7 @@ func TestDetailSortsSubtitlesForBoxFirstSubtitleFallback(t *testing.T) {
 }
 
 func TestDetailSortsSubtitlesBySubscriptionLanguage(t *testing.T) {
-	items := []openlist.Item{
+	items := []storage.Item{
 		{Name: "Movie.mkv", Type: 2},
 		{Name: "Movie.en.srt", Type: 0},
 		{Name: "Movie.zh.srt", Type: 0},
@@ -572,7 +572,7 @@ func TestDetailSortsSubtitlesBySubscriptionLanguage(t *testing.T) {
 }
 
 func TestDetailSplitsSelectedMediaAndCurrentDirectory(t *testing.T) {
-	svc := testService([]openlist.Item{
+	svc := testService([]storage.Item{
 		{Name: "a.mkv", Type: 2},
 		{Name: "b.mkv", Type: 2},
 		{Name: "c.mkv", Type: 2},
@@ -613,7 +613,7 @@ func TestDetailSplitsSelectedMediaAndCurrentDirectory(t *testing.T) {
 }
 
 func TestDetailEscapesHashInPlayNameAndEncodesPlayID(t *testing.T) {
-	svc := testService([]openlist.Item{
+	svc := testService([]storage.Item{
 		{Name: "a#b.mkv", Type: 2},
 		{Name: "a#b.srt", Type: 0},
 	})
@@ -641,7 +641,7 @@ func TestDetailEscapesHashInPlayNameAndEncodesPlayID(t *testing.T) {
 }
 
 func TestDetailHandlesPlaySeparatorsInNamesAndSubtitles(t *testing.T) {
-	svc := testService([]openlist.Item{
+	svc := testService([]storage.Item{
 		{Name: "a#b$c~~~d@@@e.mkv", Type: 2},
 		{Name: "a#b$c~~~d@@@e.ass", Type: 0},
 	})
@@ -669,7 +669,7 @@ func TestDetailHandlesPlaySeparatorsInNamesAndSubtitles(t *testing.T) {
 }
 
 func TestDetailSortsMediaNaturally(t *testing.T) {
-	svc := testService([]openlist.Item{
+	svc := testService([]storage.Item{
 		{Name: "Show S01E10.mkv", Type: 2},
 		{Name: "Show S02E01.mkv", Type: 2},
 		{Name: "Show S01E09.mkv", Type: 2},
@@ -695,7 +695,7 @@ func TestDetailSortsMediaNaturally(t *testing.T) {
 }
 
 func TestDetailSortsSeasonEpisodeWithinSeries(t *testing.T) {
-	svc := testService([]openlist.Item{
+	svc := testService([]storage.Item{
 		{Name: "ShowB S01E01.mkv", Type: 2},
 		{Name: "ShowA S01E02.mkv", Type: 2},
 		{Name: "ShowB S01E02.mkv", Type: 2},
@@ -728,7 +728,7 @@ func TestDetailFolderListsFolderInsteadOfParent(t *testing.T) {
 	if err := cfg.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	svc := NewService(cfg, pathListClient{items: map[string][]openlist.Item{
+	svc := NewService(cfg, pathListClient{items: map[string][]storage.Item{
 		"/root":      {{Name: "root.mkv", Type: 2}, {Name: "show", Type: 1}},
 		"/root/show": {{Name: "episode.mkv", Type: 2}, {Name: "nested", Type: 1}},
 	}}, nil)
@@ -810,67 +810,67 @@ type recordingClient struct {
 	path      string
 }
 
-func (r *recordingClient) List(_ context.Context, backend config.Backend, path, _ string) ([]openlist.Item, error) {
+func (r *recordingClient) List(_ context.Context, backend config.Backend, path, _ string) ([]storage.Item, error) {
 	r.backendID = backend.ID
 	r.path = path
 	return nil, nil
 }
 
-func (r *recordingClient) RefreshList(_ context.Context, backend config.Backend, path, _ string) ([]openlist.Item, error) {
+func (r *recordingClient) RefreshList(_ context.Context, backend config.Backend, path, _ string) ([]storage.Item, error) {
 	r.backendID = backend.ID
 	r.path = path
 	return nil, nil
 }
 
-func (r *recordingClient) Get(context.Context, config.Backend, string, string) (openlist.Item, error) {
-	return openlist.Item{}, nil
+func (r *recordingClient) Get(context.Context, config.Backend, string, string) (storage.Item, error) {
+	return storage.Item{}, nil
 }
 
-func (r *recordingClient) Search(context.Context, config.Backend, string, string, string) ([]openlist.Item, error) {
+func (r *recordingClient) Search(context.Context, config.Backend, string, string, string) ([]storage.Item, error) {
 	return nil, nil
 }
 
 type pathListClient struct {
-	items map[string][]openlist.Item
+	items map[string][]storage.Item
 }
 
-func (p pathListClient) List(_ context.Context, _ config.Backend, path, _ string) ([]openlist.Item, error) {
+func (p pathListClient) List(_ context.Context, _ config.Backend, path, _ string) ([]storage.Item, error) {
 	return p.items[path], nil
 }
 
-func (p pathListClient) RefreshList(_ context.Context, _ config.Backend, path, _ string) ([]openlist.Item, error) {
+func (p pathListClient) RefreshList(_ context.Context, _ config.Backend, path, _ string) ([]storage.Item, error) {
 	return p.items[path], nil
 }
 
-func (p pathListClient) Get(context.Context, config.Backend, string, string) (openlist.Item, error) {
-	return openlist.Item{}, nil
+func (p pathListClient) Get(context.Context, config.Backend, string, string) (storage.Item, error) {
+	return storage.Item{}, nil
 }
 
-func (p pathListClient) Search(context.Context, config.Backend, string, string, string) ([]openlist.Item, error) {
+func (p pathListClient) Search(context.Context, config.Backend, string, string, string) ([]storage.Item, error) {
 	return nil, nil
 }
 
 type fileCategoryClient struct{}
 
-func (fileCategoryClient) List(_ context.Context, _ config.Backend, p, _ string) ([]openlist.Item, error) {
+func (fileCategoryClient) List(_ context.Context, _ config.Backend, p, _ string) ([]storage.Item, error) {
 	if p == "/root/movie.mkv" {
 		return nil, errors.New("not a directory")
 	}
-	return []openlist.Item{{Name: "movie.mkv", Type: 2}}, nil
+	return []storage.Item{{Name: "movie.mkv", Type: 2}}, nil
 }
 
-func (fileCategoryClient) RefreshList(context.Context, config.Backend, string, string) ([]openlist.Item, error) {
+func (fileCategoryClient) RefreshList(context.Context, config.Backend, string, string) ([]storage.Item, error) {
 	return nil, nil
 }
 
-func (fileCategoryClient) Get(_ context.Context, _ config.Backend, p, _ string) (openlist.Item, error) {
+func (fileCategoryClient) Get(_ context.Context, _ config.Backend, p, _ string) (storage.Item, error) {
 	if p == "/root/movie.mkv" {
-		return openlist.Item{Name: "movie.mkv", Type: 2, URL: "https://cdn.example.com/movie.mkv"}, nil
+		return storage.Item{Name: "movie.mkv", Type: 2, URL: "https://cdn.example.com/movie.mkv"}, nil
 	}
-	return openlist.Item{}, nil
+	return storage.Item{}, nil
 }
 
-func (fileCategoryClient) Search(context.Context, config.Backend, string, string, string) ([]openlist.Item, error) {
+func (fileCategoryClient) Search(context.Context, config.Backend, string, string, string) ([]storage.Item, error) {
 	return nil, nil
 }
 

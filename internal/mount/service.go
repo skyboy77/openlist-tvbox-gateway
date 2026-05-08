@@ -13,7 +13,7 @@ import (
 	"openlist-tvbox/internal/catvod"
 	"openlist-tvbox/internal/config"
 	"openlist-tvbox/internal/i18n"
-	"openlist-tvbox/internal/openlist"
+	"openlist-tvbox/internal/storage"
 	"openlist-tvbox/internal/utils"
 )
 
@@ -27,16 +27,16 @@ const (
 	maxNoteNameRunes = 12
 )
 
-type OpenListClient interface {
-	List(ctx context.Context, backend config.Backend, path, password string) ([]openlist.Item, error)
-	RefreshList(ctx context.Context, backend config.Backend, path, password string) ([]openlist.Item, error)
-	Get(ctx context.Context, backend config.Backend, path, password string) (openlist.Item, error)
-	Search(ctx context.Context, backend config.Backend, path, keyword, password string) ([]openlist.Item, error)
+type BackendClient interface {
+	List(ctx context.Context, backend config.Backend, path, password string) ([]storage.Item, error)
+	RefreshList(ctx context.Context, backend config.Backend, path, password string) ([]storage.Item, error)
+	Get(ctx context.Context, backend config.Backend, path, password string) (storage.Item, error)
+	Search(ctx context.Context, backend config.Backend, path, keyword, password string) ([]storage.Item, error)
 }
 
 type Service struct {
 	cfg      *config.Config
-	client   OpenListClient
+	client   BackendClient
 	logger   *slog.Logger
 	backends map[string]config.Backend
 	scopes   map[string]*scope
@@ -61,7 +61,7 @@ type playSubToken struct {
 	ID   string `json:"id"`
 }
 
-func NewService(cfg *config.Config, client OpenListClient, logger *slog.Logger) *Service {
+func NewService(cfg *config.Config, client BackendClient, logger *slog.Logger) *Service {
 	s := &Service{cfg: cfg, client: client, logger: logger, backends: map[string]config.Backend{}, scopes: map[string]*scope{}}
 	for _, b := range cfg.Backends {
 		s.backends[b.ID] = b
@@ -118,7 +118,7 @@ func (s *Service) CategoryForSub(ctx context.Context, subID, tid, sortType, orde
 	sortItems(sortType, order, folders)
 	sortItems(sortType, order, files)
 	vods := make([]catvod.Vod, 0, len(folders)+len(files))
-	if ref.mount.Refresh && ref.backend.Type != "webdav" {
+	if ref.mount.Refresh && ref.backend.SupportsRefresh() {
 		vods = append(vods, refreshDirectoryVod(ref.mount, ref.relPath, ref.scope.lang))
 	}
 	if hasMedia(files) {
@@ -143,7 +143,7 @@ func (s *Service) RefreshForSub(ctx context.Context, subID, id string) (catvod.R
 	if !ref.mount.Refresh {
 		return catvod.Result{}, errors.New("refresh is not enabled for this mount")
 	}
-	if ref.backend.Type == "webdav" {
+	if !ref.backend.SupportsRefresh() {
 		return catvod.Result{}, errors.New("refresh is not supported for webdav mounts")
 	}
 	if _, err := s.client.RefreshList(ctx, ref.backend, ref.backendPath, ref.password); err != nil {
@@ -165,7 +165,7 @@ func (s *Service) DetailForSub(ctx context.Context, subID, id string) (catvod.Re
 	playFrom := i18n.T(ref.scope.lang, i18n.RemarkCurrentDir)
 	playURL := strings.Join(directoryPlayURLs, "#")
 	if selected, ok := selectedMediaItem(items, selectedName); ok {
-		selectedPlayURLs := s.playURLsForItems(ref, mediaParentRel, items, []openlist.Item{selected})
+		selectedPlayURLs := s.playURLsForItems(ref, mediaParentRel, items, []storage.Item{selected})
 		playFrom = i18n.T(ref.scope.lang, i18n.ActionClickPlay) + "$$$" + i18n.T(ref.scope.lang, i18n.RemarkCurrentDir)
 		playURL = strings.Join(selectedPlayURLs, "#") + "$$$" + strings.Join(directoryPlayURLs, "#")
 	}
@@ -180,7 +180,7 @@ func (s *Service) DetailForSub(ctx context.Context, subID, id string) (catvod.Re
 	return catvod.Result{List: []catvod.Vod{vod}}, nil
 }
 
-func (s *Service) playURLsForItems(ref resolved, mediaParentRel string, allItems, mediaItems []openlist.Item) []string {
+func (s *Service) playURLsForItems(ref resolved, mediaParentRel string, allItems, mediaItems []storage.Item) []string {
 	playURLs := make([]string, 0, len(mediaItems))
 	for _, item := range mediaItems {
 		subs := s.findSubs(ref.mount, mediaParentRel, allItems, item.Name, ref.scope.lang)
@@ -190,7 +190,7 @@ func (s *Service) playURLsForItems(ref resolved, mediaParentRel string, allItems
 	return playURLs
 }
 
-func selectedRemark(items []openlist.Item, selectedName string) string {
+func selectedRemark(items []storage.Item, selectedName string) string {
 	for _, item := range items {
 		if item.Name == selectedName && utils.IsMedia(item.Name, item.Type) {
 			return playItemName(item.Name)
@@ -199,7 +199,7 @@ func selectedRemark(items []openlist.Item, selectedName string) string {
 	return ""
 }
 
-func (s *Service) detailItems(ctx context.Context, ref resolved) ([]openlist.Item, string, string, error) {
+func (s *Service) detailItems(ctx context.Context, ref resolved) ([]storage.Item, string, string, error) {
 	if ref.relPath == "" {
 		items, err := s.client.List(ctx, ref.backend, ref.backendPath, ref.password)
 		return items, "", "", err
@@ -246,7 +246,7 @@ func (s *Service) SearchForSub(ctx context.Context, subID, keyword string) (catv
 		}
 		mountCfg := m
 		backend := s.backends[m.Backend]
-		if backend.Type == "webdav" {
+		if !backend.SupportsSearch() {
 			continue
 		}
 		wg.Add(1)
@@ -293,7 +293,7 @@ func (s *Service) PlayForSubWithProxy(ctx context.Context, subID, encodedID stri
 	if err != nil {
 		return catvod.Result{}, err
 	}
-	if ref.backend.Type == "webdav" && proxyURL == nil {
+	if ref.backend.RequiresPlaybackProxy() && proxyURL == nil {
 		return catvod.Result{}, errors.New("webdav playback requires gateway proxy")
 	}
 	subs := []catvod.Sub{}
@@ -307,7 +307,7 @@ func (s *Service) PlayForSubWithProxy(ctx context.Context, subID, encodedID stri
 			continue
 		}
 		url := subItem.Link()
-		if subRef.backend.Type == "webdav" {
+		if subRef.backend.RequiresPlaybackProxy() {
 			if proxyURL == nil {
 				continue
 			}
@@ -325,7 +325,7 @@ func (s *Service) PlayForSubWithProxy(ctx context.Context, subID, encodedID stri
 	}
 	playURL := item.Link()
 	headers := playHeader(playURL, ref.mount.PlayHeaders)
-	if ref.backend.Type == "webdav" {
+	if ref.backend.RequiresPlaybackProxy() {
 		playURL = proxyURL(token.ID, item.Name, "media")
 		headers = map[string]string{}
 	}
@@ -341,7 +341,7 @@ func (s *Service) OpenProxyForSub(ctx context.Context, subID, id, method, rangeH
 	if err != nil {
 		return nil, err
 	}
-	if ref.backend.Type != "webdav" {
+	if !ref.backend.RequiresPlaybackProxy() {
 		return nil, errors.New("file proxy is not supported for this backend")
 	}
 	client, ok := s.client.(streamClient)
