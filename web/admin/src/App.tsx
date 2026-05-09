@@ -6,7 +6,7 @@ import { detectLanguage, saveLanguage, translate, type Language } from "./i18n";
 import type { T } from "./shared";
 import { emptyConfig, normalizeConfig } from "./configState";
 import { localizeError } from "./errors";
-import { LanguageSelect, Status } from "./components/ui";
+import { LanguageSelect } from "./components/ui";
 import { AuthPanel } from "./panels/AuthPanel";
 import { OverviewPanel } from "./panels/OverviewPanel";
 import { BackendEditor } from "./panels/BackendEditor";
@@ -14,14 +14,19 @@ import { SubscriptionEditor } from "./panels/SubscriptionEditor";
 import { LogsPanel } from "./panels/LogsPanel";
 
 type AdminTab = "overview" | "backends" | "subscriptions" | "logs";
+type ActionFeedbackTarget = "validate" | "save";
+
 export function App() {
   const [session, setSession] = useState<SessionState | null>(null);
   const [config, setConfig] = useState<AdminConfig>(emptyConfig);
   const [language, setLanguage] = useState<Language>(() => detectLanguage());
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [feedbackTarget, setFeedbackTarget] = useState<ActionFeedbackTarget>("validate");
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<AdminTab>("overview");
+  const actionsRef = useRef<HTMLDivElement>(null);
+  const feedbackRequestRef = useRef(0);
   const t: T = useMemo(() => (key) => translate(language, key), [language]);
   const tRef = useRef<T>(t);
 
@@ -65,30 +70,66 @@ export function App() {
     });
   }, []);
 
+  useEffect(() => {
+    if (!message && !error) {
+      return;
+    }
+
+    function closeFeedback(event: PointerEvent) {
+      if (actionsRef.current?.contains(event.target as Node)) {
+        return;
+      }
+      setMessage("");
+      setError("");
+    }
+
+    document.addEventListener("pointerdown", closeFeedback);
+    return () => document.removeEventListener("pointerdown", closeFeedback);
+  }, [message, error]);
+
   async function handleValidate() {
+    const requestId = ++feedbackRequestRef.current;
     setMessage("");
     setError("");
+    setFeedbackTarget("validate");
     try {
       const result = await validateConfig(config);
+      if (requestId !== feedbackRequestRef.current) {
+        return;
+      }
       if (result.valid) {
         setMessage(t("configValid"));
       } else {
         setError(result.error ? localizeError(new APIError(result.error, result.error_code, result.error_params), t, "config") : t("configInvalid"));
       }
     } catch (err) {
+      if (requestId !== feedbackRequestRef.current) {
+        return;
+      }
       setError(localizeError(err, t));
     }
   }
 
   async function handleSave() {
+    const requestId = ++feedbackRequestRef.current;
     setMessage("");
     setError("");
+    setFeedbackTarget("save");
     try {
       await saveConfig(config);
+      if (requestId !== feedbackRequestRef.current) {
+        return;
+      }
       setMessage(t("configSaved"));
       const nextConfig = await getConfig();
+      if (requestId !== feedbackRequestRef.current) {
+        return;
+      }
       setConfig(normalizeConfig(nextConfig));
     } catch (err) {
+      if (requestId !== feedbackRequestRef.current) {
+        return;
+      }
       setError(localizeError(err, t));
     }
   }
@@ -114,21 +155,25 @@ export function App() {
           <TvMinimalPlay size={30} />
           <h1>{t("adminDashboard")}</h1>
         </div>
-        <div className="actions">
+        <div className="actions" ref={actionsRef}>
           <LanguageSelect language={language} onChange={changeLanguage} t={t} />
-          <button type="button" onClick={handleValidate}>
-            <Check size={18} /> <span>{t("validate")}</span>
-          </button>
-          <button type="button" className="primary" onClick={handleSave}>
-            <Save size={18} /> <span>{t("save")}</span>
-          </button>
+          <div className="action-feedback-anchor">
+            <button type="button" onClick={handleValidate}>
+              <Check size={18} /> <span>{t("validate")}</span>
+            </button>
+            {feedbackTarget === "validate" && (message || error) && <ActionFeedback message={message} error={error} align="right" />}
+          </div>
+          <div className="action-feedback-anchor">
+            <button type="button" className="primary" onClick={handleSave}>
+              <Save size={18} /> <span>{t("save")}</span>
+            </button>
+            {feedbackTarget === "save" && (message || error) && <ActionFeedback message={message} error={error} align="right" />}
+          </div>
           <button type="button" className="icon" aria-label={t("logOut")} title={t("logOut")} onClick={handleLogout}>
             <LogOut size={18} />
           </button>
         </div>
       </header>
-
-      {(message || error) && <Status message={message} error={error} />}
 
       <section className="workspace">
         <div className="tabs" role="tablist" aria-label={t("editorSections")}>
@@ -153,5 +198,13 @@ export function App() {
         </div>
       </section>
     </main>
+  );
+}
+
+function ActionFeedback({ message, error, align = "left" }: { message: string; error: string; align?: "left" | "right" }) {
+  return (
+    <div className={`action-feedback ${error ? "error" : "ok"} align-${align}`} role={error ? "alert" : "status"} aria-live={error ? "assertive" : "polite"}>
+      {error || message}
+    </div>
   );
 }

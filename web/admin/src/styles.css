@@ -228,6 +228,68 @@ p {
   gap: 8px;
 }
 
+.action-feedback-anchor {
+  display: inline-flex;
+  position: relative;
+}
+
+.action-feedback {
+  border-radius: 6px;
+  box-shadow: var(--shadow-panel);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.45;
+  max-width: min(360px, calc(100vw - 40px));
+  min-width: min(180px, calc(100vw - 40px));
+  overflow-wrap: anywhere;
+  padding: 9px 11px;
+  position: absolute;
+  top: calc(100% + 8px);
+  white-space: normal;
+  width: max-content;
+  z-index: 40;
+}
+
+.action-feedback::before {
+  background: inherit;
+  border-left: inherit;
+  border-top: inherit;
+  content: "";
+  height: 9px;
+  position: absolute;
+  top: -5px;
+  transform: rotate(45deg);
+  width: 9px;
+}
+
+.action-feedback.align-left {
+  left: 0;
+}
+
+.action-feedback.align-left::before {
+  left: 18px;
+}
+
+.action-feedback.align-right {
+  right: 0;
+}
+
+.action-feedback.align-right::before {
+  right: 18px;
+}
+
+.action-feedback.ok {
+  background: var(--color-success-bg);
+  border: 1px solid var(--color-success-border);
+  color: var(--color-success);
+}
+
+.action-feedback.error {
+  background: var(--color-danger-bg);
+  border: 1px solid var(--color-danger-border-muted);
+  color: var(--color-danger-strong);
+}
+
 .language-menu {
   flex: 0 0 auto;
   position: relative;
@@ -795,6 +857,10 @@ button.help-button:focus-visible {
     justify-content: flex-end;
   }
 
+  .action-feedback {
+    max-width: min(320px, calc(100vw - 40px));
+  }
+
   .form-grid,
   .secret-row,
   .access-code-row {
@@ -830,6 +896,10 @@ button.help-button:focus-visible {
 
   .actions button:not(.icon) span {
     display: none;
+  }
+
+  .action-feedback {
+    min-width: min(220px, calc(100vw - 40px));
   }
 
   .tooltip {
