@@ -17,6 +17,7 @@ import (
 	"openlist-tvbox/internal/admin"
 	"openlist-tvbox/internal/auth"
 	backendclient "openlist-tvbox/internal/backend"
+	"openlist-tvbox/internal/buildinfo"
 	"openlist-tvbox/internal/config"
 	"openlist-tvbox/internal/gateway"
 	"openlist-tvbox/internal/logging"
@@ -38,6 +39,8 @@ func main() {
 
 	logBuffer := logging.NewBuffer(logging.DefaultBufferSize)
 	logger := slog.New(logging.NewHandler(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}), logBuffer))
+	info := buildinfo.Current()
+	logger.Info("openlist-tvbox version", "version", info.Version, "commit", info.Commit, "source", info.SourceURL)
 	if printConfigExample {
 		_, _ = os.Stdout.WriteString(starterConfigYAML)
 		return

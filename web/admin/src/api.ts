@@ -1,4 +1,4 @@
-import { APIError, type AdminConfig, type Backend, type BackendTestResult, type ConfigMeta, type ErrorParams, type LogResponse, type SessionState } from "./types";
+import { APIError, type AdminConfig, type AppAbout, type Backend, type BackendTestResult, type ConfigMeta, type ErrorParams, type LogResponse, type SessionState } from "./types";
 
 const authExpiredListeners = new Set<() => void>();
 
@@ -44,6 +44,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export function getSession() {
   return request<SessionState>("/admin/session");
+}
+
+export function getAbout() {
+  return request<AppAbout>("/admin/about");
 }
 
 export function setupAdmin(setupCode: string, accessCode: string) {

@@ -111,6 +111,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /admin/logout", s.requireSameOrigin(s.logout))
 	mux.HandleFunc("POST /admin/access-code", s.requireSameOrigin(s.requireAuth(s.updateAdminAccessCode)))
 	mux.HandleFunc("GET /admin/session", s.session)
+	mux.HandleFunc("GET /admin/about", s.requireAuth(s.about))
 	mux.HandleFunc("GET /admin/config/meta", s.requireAuth(s.meta))
 	mux.HandleFunc("GET /admin/config", s.requireAuth(s.getConfig))
 	mux.HandleFunc("GET /admin/logs", s.requireAuth(s.logs))

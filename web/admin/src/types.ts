@@ -83,6 +83,12 @@ export interface ConfigMeta {
   message?: string;
 }
 
+export interface AppAbout {
+  version: string;
+  commit?: string;
+  source_url: string;
+}
+
 export type ErrorParams = Record<string, string | number | boolean | undefined>;
 
 export interface BackendTestResult {

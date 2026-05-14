@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, LogOut, Save, TvMinimalPlay } from "lucide-react";
-import { getConfig, getSession, logout, onAuthExpired, saveConfig, validateConfig } from "./api";
-import { APIError, type AdminConfig, type SessionState } from "./types";
+import { Check, Github, LogOut, Save, TvMinimalPlay } from "lucide-react";
+import { getAbout, getConfig, getSession, logout, onAuthExpired, saveConfig, validateConfig } from "./api";
+import { APIError, type AdminConfig, type AppAbout, type SessionState } from "./types";
 import { detectLanguage, saveLanguage, translate, type Language } from "./i18n";
 import type { T } from "./shared";
 import { emptyConfig, normalizeConfig } from "./configState";
@@ -19,6 +19,7 @@ type ActionFeedbackTarget = "validate" | "save";
 export function App() {
   const [session, setSession] = useState<SessionState | null>(null);
   const [config, setConfig] = useState<AdminConfig>(emptyConfig);
+  const [about, setAbout] = useState<AppAbout | null>(null);
   const [language, setLanguage] = useState<Language>(() => detectLanguage());
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -46,8 +47,9 @@ export function App() {
       const nextSession = await getSession();
       setSession(nextSession);
       if (nextSession.authenticated) {
-        const nextConfig = await getConfig();
+        const [nextConfig, nextAbout] = await Promise.all([getConfig(), getAbout()]);
         setConfig(normalizeConfig(nextConfig));
+        setAbout(nextAbout);
       }
     } catch (err) {
       setError(localizeError(err, tRef.current));
@@ -64,6 +66,7 @@ export function App() {
     return onAuthExpired(() => {
       setSession({ authenticated: false, setup_required: false });
       setConfig(emptyConfig);
+      setAbout(null);
       setMessage("");
       setError("");
       setLoading(false);
@@ -138,6 +141,7 @@ export function App() {
     await logout();
     setSession({ authenticated: false, setup_required: false });
     setConfig(emptyConfig);
+    setAbout(null);
   }
 
   if (loading) {
@@ -153,7 +157,18 @@ export function App() {
       <header className="topbar">
         <div className="brand-title">
           <TvMinimalPlay size={30} />
-          <h1>{t("adminDashboard")}</h1>
+          <div className="brand-copy">
+            <h1>{t("adminDashboard")}</h1>
+            {about && (
+              <div className="app-meta">
+                <span>{about.version}</span>
+                <span aria-hidden="true">·</span>
+                <a className="app-meta-link" href={about.source_url} target="_blank" rel="noreferrer" aria-label="GitHub" title="GitHub">
+                  <Github size={14} />
+                </a>
+              </div>
+            )}
+          </div>
         </div>
         <div className="actions" ref={actionsRef}>
           <LanguageSelect language={language} onChange={changeLanguage} t={t} />

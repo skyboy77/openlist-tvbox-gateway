@@ -9,7 +9,7 @@ builds:
     env:
       - CGO_ENABLED=0
     ldflags:
-      - -s -w -X openlist-tvbox/internal/subscription.SpiderFingerprint={{ .Env.SPIDER_FINGERPRINT }}
+      - -s -w -X openlist-tvbox/internal/subscription.SpiderFingerprint={{ .Env.SPIDER_FINGERPRINT }} -X openlist-tvbox/internal/buildinfo.Version={{ .Version }} -X openlist-tvbox/internal/buildinfo.Commit={{ .FullCommit }} -X openlist-tvbox/internal/buildinfo.SourceURL={{ .GitURL }}
     goos:
       - linux
       - darwin
